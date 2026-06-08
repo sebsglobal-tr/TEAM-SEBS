@@ -116,21 +116,6 @@ export class ReportsController {
 
   // ─── Dashboard Özet ─────────────────────────────────────────────────
 
-  @Get('overview')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
-  getOverview(
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
-    @Query('departmentId') departmentId?: string,
-  ) {
-    return this.reportsService.getOverview(
-      new Date(startDate),
-      new Date(endDate),
-      departmentId,
-    );
-  }
-
   // ─── İstatistik ─────────────────────────────────────────────────────
 
   @Get('stats/my')

@@ -173,7 +173,6 @@ model User {
   refreshTokens  RefreshToken[]
 
   reports    Report[]
-  reportFiles ReportFile[]
   feedbacks  Feedback[]
 
   createdAt DateTime @default(now())

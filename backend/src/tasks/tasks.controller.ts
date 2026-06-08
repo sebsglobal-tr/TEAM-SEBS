@@ -11,10 +11,8 @@ import {
 } from '@nestjs/common';
 import { UserRole, TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { CreateTaskDto, UpdateTaskDto, UpdateStatusDto, AssignTaskDto, SplitTaskDto } from './dto/create-task.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
-import { UpdateStatusDto } from './dto/update-status.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../common/guards/active-user.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -26,6 +24,8 @@ import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 @UseGuards(JwtAuthGuard, ActiveUserGuard, RolesGuard)
 export class TasksController {
   constructor(private tasksService: TasksService) {}
+
+  // ─── CRUD ───────────────────────────────────────────────────────────
 
   @Post()
   @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
@@ -74,6 +74,14 @@ export class TasksController {
     return this.tasksService.updateStatus(id, dto, user);
   }
 
+  @Delete(':id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.tasksService.softDelete(id, user);
+  }
+
+  // ─── Comment ────────────────────────────────────────────────────────
+
   @Post(':id/comments')
   addComment(
     @Param('id') id: string,
@@ -83,9 +91,39 @@ export class TasksController {
     return this.tasksService.addComment(id, dto, user);
   }
 
-  @Delete(':id')
+  // ─── Assignment Flow: Admin → Manager ──────────────────────────────
+
+  @Patch(':id/assign')
+  @Roles(UserRole.SUPER_ADMIN)
+  assignToManager(
+    @Param('id') id: string,
+    @Body() dto: AssignTaskDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.tasksService.assignToManager(id, dto.assigneeId, user);
+  }
+
+  // ─── Assignment Flow: Manager → Employee ───────────────────────────
+
+  @Patch(':id/assign-employee')
   @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
-  remove(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.tasksService.softDelete(id, user);
+  assignToEmployee(
+    @Param('id') id: string,
+    @Body() dto: AssignTaskDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.tasksService.assignToEmployee(id, dto.assigneeId, user);
+  }
+
+  // ─── Split Task: Manager splits into subtasks for employees ────────
+
+  @Post(':id/split')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  splitTask(
+    @Param('id') id: string,
+    @Body() dto: SplitTaskDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.tasksService.splitTask(id, dto.subtasks, user);
   }
 }

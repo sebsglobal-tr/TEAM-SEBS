@@ -89,15 +89,18 @@ export interface Task {
   assignedToId?: string;
   createdById: string;
   departmentId?: string;
+  parentTaskId?: string;
   dueDate?: string;
   estimatedMinutes?: number;
   actualMinutes: number;
   completionPercent: number;
-  assignedTo?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>;
-  createdBy?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>;
+  assignedTo?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
+  createdBy?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
   department?: Pick<Department, 'id' | 'name'>;
   comments?: TaskComment[];
   attachments?: TaskAttachment[];
+  subTasks?: Array<{ id: string; title: string; status: TaskStatus; assignedToId?: string }>;
+  _count?: { subTasks: number };
   createdAt: string;
   updatedAt: string;
 }
