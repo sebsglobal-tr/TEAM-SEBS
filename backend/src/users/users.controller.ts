@@ -49,6 +49,23 @@ export class UsersController {
     });
   }
 
+  @Get('managers')
+  @Roles(UserRole.SUPER_ADMIN)
+  getManagers(@CurrentUser() user: JwtPayload) {
+    return this.usersService.getManagers(user);
+  }
+
+  @Get('employees')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  getEmployees(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status?: UserStatus,
+    @Query('search') search?: string,
+    @Query('managerId') managerId?: string,
+  ) {
+    return this.usersService.getEmployees(user, { status, search, managerId });
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.usersService.findOne(id, user);
@@ -62,6 +79,12 @@ export class UsersController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.usersService.update(id, dto, user);
+  }
+
+  @Patch(':id/activate')
+  @Roles(UserRole.SUPER_ADMIN)
+  activate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.usersService.activate(id, user);
   }
 
   @Patch(':id/deactivate')

@@ -25,6 +25,7 @@ export interface User {
   status: UserStatus;
   departmentId?: string;
   position?: string;
+  managerId?: string;
   currentStatus?: EmployeeStatus;
   lastActiveAt?: string;
   department?: Department;
@@ -32,6 +33,8 @@ export interface User {
   assignedTasks?: Task[];
   workSessions?: WorkSession[];
   uploadedFiles?: FileRecord[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamMembership {

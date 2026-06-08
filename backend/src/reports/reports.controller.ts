@@ -1,65 +1,124 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UserRole, ReportStatus } from '@prisma/client';
 import { ReportsService } from './reports.service';
+import { CreateReportDto } from './dto/create-report.dto';
+import { UpdateReportStatusDto } from './dto/update-report-status.dto';
+import { AddFeedbackDto } from './dto/add-feedback.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../common/guards/active-user.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard, ActiveUserGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
-  @Get('daily')
-  getDaily(
-    @Query('date') date: string,
-    @Query('departmentId') departmentId?: string,
+  // ─── Rapor CRUD ─────────────────────────────────────────────────────
+
+  @Post()
+  create(
+    @Body() dto: CreateReportDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.reportsService.getDailyReport(new Date(date), departmentId);
+    return this.reportsService.create(dto, user);
   }
 
-  @Get('weekly')
-  getWeekly(
-    @Query('weekStart') weekStart: string,
-    @Query('departmentId') departmentId?: string,
+  @Get()
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status?: ReportStatus,
+    @Query('reportType') reportType?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.reportsService.getWeeklyReport(new Date(weekStart), departmentId);
+    return this.reportsService.findAll(user, {
+      status,
+      reportType,
+      search,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
-  @Get('monthly')
-  getMonthly(
-    @Query('year') year: string,
-    @Query('month') month: string,
-    @Query('departmentId') departmentId?: string,
-  ) {
-    return this.reportsService.getMonthlyReport(
-      parseInt(year, 10),
-      parseInt(month, 10),
-      departmentId,
-    );
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.reportsService.findOne(id, user);
   }
 
-  @Get('users/:id')
-  getUserReport(
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  updateStatus(
     @Param('id') id: string,
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
+    @Body() dto: UpdateReportStatusDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.reportsService.getUserReport(id, new Date(startDate), new Date(endDate));
+    return this.reportsService.updateStatus(id, dto.status, user);
   }
 
-  @Get('departments/:id')
-  getDepartmentReport(
+  // ─── Dosya Yükleme ──────────────────────────────────────────────────
+
+  @Post(':id/files')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadFile(
     @Param('id') id: string,
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.reportsService.getDepartmentReport(id, new Date(startDate), new Date(endDate));
+    return this.reportsService.uploadFile(id, file, user);
   }
+
+  @Get(':id/files')
+  getFiles(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.reportsService.getFiles(id, user);
+  }
+
+  @Get(':id/files/:fileId/download')
+  downloadFile(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.reportsService.downloadFile(id, fileId, user);
+  }
+
+  // ─── Geri Bildirim ──────────────────────────────────────────────────
+
+  @Post(':id/feedbacks')
+  addFeedback(
+    @Param('id') id: string,
+    @Body() dto: AddFeedbackDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.reportsService.addFeedback(id, dto.message, user);
+  }
+
+  @Get(':id/feedbacks')
+  getFeedbacks(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.reportsService.getFeedbacks(id, user);
+  }
+
+  // ─── Dashboard Özet ─────────────────────────────────────────────────
 
   @Get('overview')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
   getOverview(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
@@ -72,16 +131,10 @@ export class ReportsController {
     );
   }
 
-  @Get('tasks')
-  getTaskReport(
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
-    @Query('departmentId') departmentId?: string,
-  ) {
-    return this.reportsService.getTaskCompletionReport(
-      new Date(startDate),
-      new Date(endDate),
-      departmentId,
-    );
+  // ─── İstatistik ─────────────────────────────────────────────────────
+
+  @Get('stats/my')
+  getMyStats(@CurrentUser() user: JwtPayload) {
+    return this.reportsService.getMyStats(user.sub);
   }
 }

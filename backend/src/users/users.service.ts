@@ -145,6 +145,69 @@ export class UsersService {
     return safeUser;
   }
 
+  async getManagers(actor: JwtPayload) {
+    const managers = await this.prisma.user.findMany({
+      where: {
+        role: UserRole.MANAGER,
+        deletedAt: null,
+      },
+      include: {
+        _count: { select: { employees: true } },
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    return managers.map(({ passwordHash: _, ...m }) => m);
+  }
+
+  async getEmployees(
+    actor: JwtPayload,
+    filters?: { status?: UserStatus; search?: string; managerId?: string },
+  ) {
+    const where: Prisma.UserWhereInput = {
+      role: UserRole.EMPLOYEE,
+      deletedAt: null,
+    };
+
+    if (filters?.status) where.status = filters.status;
+    if (filters?.managerId) where.managerId = filters.managerId;
+
+    if (actor.role === UserRole.MANAGER) {
+      // Manager can only see employees assigned to them
+      where.managerId = actor.sub;
+    }
+
+    if (filters?.search) {
+      const s = filters.search.trim();
+      (where as any).OR = [
+        { firstName: { contains: s, mode: 'insensitive' } },
+        { lastName: { contains: s, mode: 'insensitive' } },
+        { email: { contains: s, mode: 'insensitive' } },
+      ];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      include: {
+        manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+        department: true,
+      },
+      orderBy: { firstName: 'asc' },
+    });
+
+    return users.map(({ passwordHash: _, ...u }) => u);
+  }
+
+  async activate(id: string, actor: JwtPayload) {
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: { status: UserStatus.ACTIVE },
+    });
+
+    const { passwordHash: _, ...safeUser } = user;
+    return safeUser;
+  }
+
   async deactivate(id: string, actor: JwtPayload) {
     if (actor.sub === id) {
       throw new ForbiddenException('Kendi hesabınızı pasife alamazsınız');

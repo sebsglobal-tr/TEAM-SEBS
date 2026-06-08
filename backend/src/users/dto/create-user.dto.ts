@@ -32,4 +32,8 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   position?: string;
+
+  @IsString()
+  @IsOptional()
+  managerId?: string;
 }

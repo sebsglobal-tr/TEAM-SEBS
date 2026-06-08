@@ -4,21 +4,34 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
 import './login.css';
 
+const HOME_BY_ROLE: Record<string, string> = {
+  SUPER_ADMIN: '/admin/dashboard',
+  MANAGER: '/manager/dashboard',
+  EMPLOYEE: '/employee/dashboard',
+};
+
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
+
+  // Already logged in → redirect
+  if (user) {
+    const target = HOME_BY_ROLE[user.role] ?? '/dashboard';
+    navigate(target, { replace: true });
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const loggedInUser = await login(email, password);
+      const target = HOME_BY_ROLE[loggedInUser?.role] ?? '/dashboard';
+      navigate(target, { replace: true });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(typeof msg === 'string' ? msg : 'Giriş başarısız');

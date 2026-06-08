@@ -45,6 +45,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      managerId: user.managerId ?? undefined,
     });
 
     await this.auditService.log({
@@ -80,6 +81,7 @@ export class AuthService {
       sub: stored.user.id,
       email: stored.user.email,
       role: stored.user.role,
+      managerId: stored.user.managerId ?? undefined,
     });
   }
 
