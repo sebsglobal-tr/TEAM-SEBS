@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download } from 'lucide-react';
+import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download, ListTodo } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { workSessionsService, type DashboardWorkStats } from '../../services/work-sessions.service';
 import { filesService, type FileRecord } from '../../services/files.service';
+import { tasksService } from '../../services/tasks.service';
+import { DailyTaskView } from '../../components/DailyTaskView';
 import { formatDuration, formatDateTime } from '../../utils/format';
+import type { Task } from '../../types';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -11,19 +15,23 @@ function formatFileSize(bytes: number): string {
 }
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardWorkStats | null>(null);
   const [recentFiles, setRecentFiles] = useState<FileRecord[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [statsData, filesData] = await Promise.all([
+        const [statsData, filesData, tasksData] = await Promise.all([
           workSessionsService.getDashboardStats(),
           filesService.getAll({ limit: 8 }),
+          tasksService.getAll({ limit: "20" }),
         ]);
         setStats(statsData);
         setRecentFiles(filesData);
+        setTasks(tasksData);
       } catch (err) {
         console.error('Dashboard yüklenirken hata:', err);
       } finally {
@@ -33,6 +41,16 @@ export function AdminDashboard() {
     load();
   }, []);
 
+  const handleStatusChange = async (taskId: string, status: string) => {
+    try {
+      await tasksService.updateStatus(taskId, status);
+      const updated = await tasksService.getAll({ limit: "20" });
+      setTasks(updated);
+    } catch (err) {
+      console.error('Görev durumu güncellenirken hata:', err);
+    }
+  };
+
   if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
   const summary = stats?.summary;
@@ -41,7 +59,7 @@ export function AdminDashboard() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Admin Dashboard</h1>
-        <p className="page-subtitle">Sistem genel özet ve kullanıcı yönetimi</p>
+        <p className="page-subtitle">Sistem genel özet, görev takvimi ve kullanıcı yönetimi</p>
       </div>
 
       {/* Özet Kartları */}
@@ -87,6 +105,28 @@ export function AdminDashboard() {
             <div className="stat-card-label">Bugün Ekip Toplam</div>
             <div className="stat-card-value">{formatDuration(summary?.totalActiveSecondsToday ?? 0)}</div>
           </div>
+        </div>
+      </div>
+
+      {/* Günlük Görev Takvimi */}
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div className="card-header">
+          <div>
+            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ListTodo size={18} /> Günlük Görev Takvimi
+            </div>
+            <div className="card-subtitle">Sistemdeki tüm görevlerin akış görünümü</div>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/users')}>
+            Tüm Görevler
+          </button>
+        </div>
+        <div className="card-body" style={{ paddingTop: '0.5rem' }}>
+          <DailyTaskView
+            tasks={tasks}
+            onStatusChange={handleStatusChange}
+            onViewDetail={(id) => navigate(`/tasks/${id}`)}
+          />
         </div>
       </div>
 
