@@ -1,0 +1,479 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmployeeStatus {
+  ONLINE_ACTIVE
+  ONLINE_IDLE
+  SCREEN_LOCKED
+  ON_BREAK
+  OFFLINE
+  WORK_SESSION_ENDED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  WAITING_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum FileType {
+  TASK_ATTACHMENT
+  EMPLOYEE_DOCUMENT
+  COMPANY_DOCUMENT
+  REPORT
+  DELIVERABLE
+}
+
+enum FileVisibility {
+  PRIVATE
+  TEAM
+  DEPARTMENT
+  COMPANY
+}
+
+enum WorkSessionStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum ActivityEventType {
+  SESSION_START
+  SESSION_END
+  ACTIVE
+  IDLE
+  SCREEN_LOCK
+  SCREEN_UNLOCK
+  BREAK_START
+  BREAK_END
+  OFFLINE
+  HEARTBEAT
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_REVISION
+  FILE_UPLOADED
+  TASK_APPROVED
+  TASK_REJECTED
+  IDLE_WARNING
+  SESSION_ENDED
+  GENERAL
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  USER_CREATE
+  USER_UPDATE
+  USER_DEACTIVATE
+  TASK_CREATE
+  TASK_UPDATE
+  TASK_DELETE
+  FILE_UPLOAD
+  FILE_DOWNLOAD
+  FILE_DELETE
+  SESSION_START
+  SESSION_END
+  IDLE
+  ACTIVE
+  SCREEN_LOCK
+  SCREEN_UNLOCK
+  BREAK_START
+  BREAK_END
+  DEPARTMENT_CREATE
+  DEPARTMENT_UPDATE
+  DEPARTMENT_DELETE
+  SETTING_UPDATE
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid())
+  firstName    String
+  lastName     String
+  email        String     @unique
+  passwordHash String
+  role         UserRole   @default(EMPLOYEE)
+  status       UserStatus @default(ACTIVE)
+  departmentId String?
+  position     String?
+  currentStatus EmployeeStatus @default(OFFLINE)
+  lastActiveAt DateTime?
+  deletedAt    DateTime?
+
+  department        Department?  @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  managedDepartment Department?  @relation("DepartmentManager")
+  managedTeams      Team[]       @relation("TeamManager")
+  teamMemberships   TeamMember[]
+
+  assignedTasks Task[] @relation("AssignedTasks")
+  createdTasks  Task[] @relation("CreatedTasks")
+  taskComments  TaskComment[]
+
+  uploadedFiles File[] @relation("UploadedFiles")
+  employeeFiles File[] @relation("EmployeeFiles")
+
+  workSessions   WorkSession[]
+  activityEvents ActivityEvent[]
+  heartbeats     Heartbeat[]
+  breaks         Break[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]      @relation("AuditActor")
+  refreshTokens  RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([departmentId])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Department {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  managerId   String? @unique
+  deletedAt   DateTime?
+
+  manager User?  @relation("DepartmentManager", fields: [managerId], references: [id])
+  members User[] @relation("DepartmentMembers")
+  teams   Team[]
+  tasks   Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("departments")
+}
+
+model Team {
+  id           String  @id @default(uuid())
+  name         String
+  departmentId String
+  managerId    String?
+  deletedAt    DateTime?
+
+  department Department   @relation(fields: [departmentId], references: [id])
+  manager    User?        @relation("TeamManager", fields: [managerId], references: [id])
+  members    TeamMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, departmentId])
+  @@index([departmentId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id     String @id @default(uuid())
+  teamId String
+  userId String
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model Task {
+  id                String       @id @default(uuid())
+  title             String
+  description       String?
+  priority          TaskPriority @default(MEDIUM)
+  status            TaskStatus   @default(TODO)
+  assignedToId      String?
+  createdById       String
+  departmentId      String?
+  dueDate           DateTime?
+  estimatedMinutes  Int?
+  actualMinutes     Int          @default(0)
+  completionPercent Int          @default(0)
+  parentTaskId      String?
+  deletedAt         DateTime?
+
+  assignedTo User?       @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdBy  User        @relation("CreatedTasks", fields: [createdById], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+  parentTask Task?       @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks   Task[]      @relation("SubTasks")
+
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+  files       File[]
+  history     TaskHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id      String @id @default(uuid())
+  taskId  String
+  userId  String
+  comment String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id     String @id @default(uuid())
+  taskId String
+  fileId String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, fileId])
+  @@map("task_attachments")
+}
+
+model TaskHistory {
+  id        String     @id @default(uuid())
+  taskId    String
+  userId    String?
+  oldStatus TaskStatus?
+  newStatus TaskStatus?
+  field     String?
+  oldValue  String?
+  newValue  String?
+  note      String?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@map("task_history")
+}
+
+model File {
+  id           String         @id @default(uuid())
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  path         String
+  fileType     FileType       @default(TASK_ATTACHMENT)
+  uploadedById String
+  taskId       String?
+  employeeId   String?
+  version      Int            @default(1)
+  description  String?
+  visibility   FileVisibility @default(PRIVATE)
+  deletedAt    DateTime?
+
+  uploadedBy  User             @relation("UploadedFiles", fields: [uploadedById], references: [id])
+  task        Task?            @relation(fields: [taskId], references: [id])
+  employee    User?            @relation("EmployeeFiles", fields: [employeeId], references: [id])
+  attachments TaskAttachment[]
+
+  createdAt DateTime @default(now())
+
+  @@index([uploadedById])
+  @@index([taskId])
+  @@index([employeeId])
+  @@index([fileType])
+  @@map("files")
+}
+
+model WorkSession {
+  id                  String            @id @default(uuid())
+  userId              String
+  startedAt           DateTime          @default(now())
+  endedAt             DateTime?
+  totalActiveSeconds  Int               @default(0)
+  totalIdleSeconds    Int               @default(0)
+  totalBreakSeconds   Int               @default(0)
+  totalLockedSeconds  Int               @default(0)
+  totalOfflineSeconds Int               @default(0)
+  status              WorkSessionStatus @default(ACTIVE)
+
+  user           User            @relation(fields: [userId], references: [id])
+  activityEvents ActivityEvent[]
+  heartbeats     Heartbeat[]
+  breaks         Break[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startedAt])
+  @@index([status])
+  @@map("work_sessions")
+}
+
+model ActivityEvent {
+  id              String            @id @default(uuid())
+  userId          String
+  workSessionId   String?
+  type            ActivityEventType
+  timestamp       DateTime          @default(now())
+  durationSeconds Int               @default(0)
+  metadata        Json?
+
+  user        User         @relation(fields: [userId], references: [id])
+  workSession WorkSession? @relation(fields: [workSessionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([workSessionId])
+  @@index([type])
+  @@index([timestamp])
+  @@map("activity_events")
+}
+
+model Heartbeat {
+  id            String         @id @default(uuid())
+  userId        String
+  workSessionId String?
+  status        EmployeeStatus
+  idleSeconds   Int            @default(0)
+  timestamp     DateTime       @default(now())
+  clientVersion String?
+
+  user        User         @relation(fields: [userId], references: [id])
+  workSession WorkSession? @relation(fields: [workSessionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([workSessionId])
+  @@index([timestamp])
+  @@map("heartbeats")
+}
+
+model Break {
+  id              String    @id @default(uuid())
+  userId          String
+  workSessionId   String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationSeconds Int       @default(0)
+
+  user        User        @relation(fields: [userId], references: [id])
+  workSession WorkSession @relation(fields: [workSessionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([workSessionId])
+  @@map("breaks")
+}
+
+model Notification {
+  id      String           @id @default(uuid())
+  userId  String
+  title   String
+  message String
+  type    NotificationType @default(GENERAL)
+  isRead  Boolean          @default(false)
+  metadata Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  actorId    String?
+  action     AuditAction
+  entityType String?
+  entityId   String?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Setting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
