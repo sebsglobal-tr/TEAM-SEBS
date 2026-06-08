@@ -28,7 +28,7 @@ export function TransparencyPage() {
       <div className="page-header">
         <h1 className="page-title">Şeffaflık ve Veri Kullanımı</h1>
         <p className="page-subtitle">
-          WorkTrack, KVKK uyumlu ve etik bir çalışma takip sistemidir.
+          Sebs Panel, KVKK uyumlu ve etik bir çalışma takip sistemidir.
           Tüm toplanan veriler size görünür ve erişilebilirdir.
         </p>
       </div>

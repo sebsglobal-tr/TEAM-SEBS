@@ -31,8 +31,8 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-logo">WT</div>
-          <h1>WorkTrack</h1>
+          <img src="/sebs-logo.png" alt="Sebs Global" className="login-logo-img" />
+          <h1>Sebs Panel</h1>
           <p>Şeffaf çalışan takip ve görev yönetim sistemi</p>
         </div>
 

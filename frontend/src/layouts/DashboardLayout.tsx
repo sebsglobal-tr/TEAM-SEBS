@@ -83,7 +83,7 @@ export function DashboardLayout() {
     <div className="layout">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #1e40af, #3b82f6)' }}>SG</div>
+          <img src="/sebs-logo.png" alt="Sebs Global" className="sidebar-logo" />
           <div>
             <span className="brand-name">Sebs Global</span>
             <span className="brand-tag">Çalışan Takip Sistemi</span>
