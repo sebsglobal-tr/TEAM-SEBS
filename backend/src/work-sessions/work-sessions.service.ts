@@ -11,6 +11,8 @@ import {
   ActivityEventType,
   AuditAction,
   UserRole,
+  UserStatus,
+  TaskStatus,
   NotificationType,
   Prisma,
 } from '@prisma/client';
@@ -359,7 +361,7 @@ export class WorkSessionsService {
       where: {
         ...userFilter,
         role: UserRole.EMPLOYEE,
-        status: 'ACTIVE',
+        status: UserStatus.ACTIVE,
         deletedAt: null,
       },
       include: {
@@ -368,14 +370,14 @@ export class WorkSessionsService {
           where: { startedAt: { gte: startOfDay } },
         },
         assignedTasks: {
-          where: { deletedAt: null, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+          where: { deletedAt: null, status: { notIn: [TaskStatus.MANAGER_APPROVED, TaskStatus.ADMIN_APPROVED, TaskStatus.CANCELLED] } },
         },
       },
-    });
+    }) as any;
 
-    const employeeStats = employees.map((emp) => {
+    const employeeStats = (employees as any[]).map((emp: any) => {
       const totals = emp.workSessions.reduce(
-        (acc, s) => ({
+        (acc: any, s: any) => ({
           active: acc.active + s.totalActiveSeconds,
           idle: acc.idle + s.totalIdleSeconds,
           break: acc.break + s.totalBreakSeconds,
@@ -384,7 +386,7 @@ export class WorkSessionsService {
         { active: 0, idle: 0, break: 0, locked: 0 },
       );
 
-      const completedToday = emp.workSessions.filter((s) => s.status === 'ENDED').length;
+      const completedToday = emp.workSessions.filter((s: any) => s.status === 'ENDED').length;
 
       return {
         id: emp.id,
@@ -400,7 +402,7 @@ export class WorkSessionsService {
         todayLockedSeconds: totals.locked,
         pendingTasks: emp.assignedTasks.length,
         completedSessionsToday: completedToday,
-        hasActiveSession: emp.workSessions.some((s) => s.status === 'ACTIVE'),
+        hasActiveSession: emp.workSessions.some((s: any) => s.status === 'ACTIVE'),
       };
     });
 

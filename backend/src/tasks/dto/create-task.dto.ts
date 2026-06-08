@@ -6,19 +6,50 @@ import {
   IsInt,
   Min,
   Max,
+  IsArray,
   ValidateNested,
   ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TaskPriority, TaskStatus } from '@prisma/client';
+import { TaskPriority, TaskStatus, TaskType } from '@prisma/client';
 
-export class SplitSubtaskDto {
+export class CreateSubtaskDto {
   @IsString()
   title!: string;
 
   @IsUUID()
   @IsOptional()
   assignedToId?: string;
+}
+
+export class CreateBulkTaskDto {
+  @IsString()
+  title!: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsEnum(TaskType)
+  @IsOptional()
+  taskType?: TaskType;
+
+  @IsEnum(TaskPriority)
+  @IsOptional()
+  priority?: TaskPriority;
+
+  @IsUUID()
+  @IsOptional()
+  responsibleManagerId?: string;
+
+  @IsString()
+  @IsOptional()
+  dueDate?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  estimatedMinutes?: number;
 }
 
 export class AssignTaskDto {
@@ -28,9 +59,9 @@ export class AssignTaskDto {
 
 export class SplitTaskDto {
   @ValidateNested({ each: true })
-  @Type(() => SplitSubtaskDto)
+  @Type(() => CreateSubtaskDto)
   @ArrayMinSize(1)
-  subtasks!: SplitSubtaskDto[];
+  subtasks!: CreateSubtaskDto[];
 }
 
 export class UpdateStatusDto {
@@ -50,40 +81,9 @@ export class CreateTaskDto {
   @IsOptional()
   description?: string;
 
-  @IsEnum(TaskPriority)
+  @IsEnum(TaskType)
   @IsOptional()
-  priority?: TaskPriority;
-
-  @IsUUID()
-  @IsOptional()
-  assignedToId?: string;
-
-  @IsUUID()
-  @IsOptional()
-  departmentId?: string;
-
-  @IsString()
-  @IsOptional()
-  dueDate?: string;
-
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  estimatedMinutes?: number;
-
-  @IsUUID()
-  @IsOptional()
-  parentTaskId?: string;
-}
-
-export class UpdateTaskDto {
-  @IsString()
-  @IsOptional()
-  title?: string;
-
-  @IsString()
-  @IsOptional()
-  description?: string;
+  taskType?: TaskType;
 
   @IsEnum(TaskPriority)
   @IsOptional()
@@ -99,7 +99,63 @@ export class UpdateTaskDto {
 
   @IsUUID()
   @IsOptional()
+  responsibleManagerId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  parentTaskId?: string;
+
+  @IsUUID()
+  @IsOptional()
   departmentId?: string;
+
+  @IsString()
+  @IsOptional()
+  dueDate?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  estimatedMinutes?: number;
+}
+
+export class CreateCommentDto {
+  @IsString()
+  message!: string;
+
+  @IsString()
+  @IsOptional()
+  commentType?: string;
+}
+
+export class UpdateTaskDto {
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsEnum(TaskType)
+  @IsOptional()
+  taskType?: TaskType;
+
+  @IsEnum(TaskPriority)
+  @IsOptional()
+  priority?: TaskPriority;
+
+  @IsEnum(TaskStatus)
+  @IsOptional()
+  status?: TaskStatus;
+
+  @IsUUID()
+  @IsOptional()
+  assignedToId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  responsibleManagerId?: string;
 
   @IsString()
   @IsOptional()

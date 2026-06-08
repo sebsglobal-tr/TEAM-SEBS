@@ -24,18 +24,27 @@ const PRIORITY_CONFIG = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  TODO: 'Yapılacak',
+  POOL: 'Havuzda',
+  ASSIGNED_TO_MANAGER: 'Yöneticiye Atandı',
+  ASSIGNED_TO_EMPLOYEE: 'Çalışana Atandı',
+  PENDING: 'Beklemede',
   IN_PROGRESS: 'Devam Ediyor',
-  WAITING_REVIEW: 'İncelemede',
-  COMPLETED: 'Tamamlandı',
+  PARTIALLY_COMPLETED: 'Kısmen Tamamlandı',
+  BLOCKED: 'Blokaj Var',
+  SUBMITTED: 'Teslim Edildi',
+  REVISION_REQUESTED: 'Revize İstendi',
+  MANAGER_APPROVED: 'Onaylandı',
+  ADMIN_APPROVED: 'Admin Onayladı',
   CANCELLED: 'İptal',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  TODO: '#64748b',
+  PENDING: '#64748b',
   IN_PROGRESS: '#3b82f6',
-  WAITING_REVIEW: '#f59e0b',
-  COMPLETED: '#10b981',
+  SUBMITTED: '#f59e0b',
+  MANAGER_APPROVED: '#10b981',
+  ADMIN_APPROVED: '#10b981',
+  BLOCKED: '#ef4444',
   CANCELLED: '#ef4444',
 };
 
@@ -139,8 +148,9 @@ export function DailyTaskView({
 
   // Group and filter tasks
   const groupedTasks = useMemo(() => {
+    const DONE_STATUSES = ['MANAGER_APPROVED', 'ADMIN_APPROVED'];
     const filtered = filterStatus
-      ? tasks.filter((t) => t.status === filterStatus || t.status === 'TODO' && filterStatus === 'TODO')
+      ? tasks.filter((t) => t.status === filterStatus)
       : tasks;
 
     const groups: Array<{ key: string; label: string; icon: typeof Clock; tasks: Task[]; color: string }> = [];
@@ -148,7 +158,7 @@ export function DailyTaskView({
     // Exclude cancelled
     const active = filtered.filter((t) => t.status !== 'CANCELLED');
 
-    const overdue = active.filter((t) => isOverdue(t.dueDate) && t.status !== 'COMPLETED');
+    const overdue = active.filter((t) => isOverdue(t.dueDate) && !DONE_STATUSES.includes(t.status));
     const todayTasks = active.filter((t) => isToday(t.dueDate));
     const tomorrowTasks = active.filter((t) => isTomorrow(t.dueDate));
     const weekTasks = active.filter((t) => isThisWeek(t.dueDate));
@@ -156,7 +166,7 @@ export function DailyTaskView({
       if (!t.dueDate) return true;
       return !isOverdue(t.dueDate) && !isToday(t.dueDate) && !isTomorrow(t.dueDate) && !isThisWeek(t.dueDate);
     });
-    const completed = active.filter((t) => t.status === 'COMPLETED');
+    const completed = active.filter((t) => DONE_STATUSES.includes(t.status));
 
     if (overdue.length) groups.push({ key: 'overdue', label: 'Geciken Görevler', icon: AlertCircle, tasks: overdue, color: '#ef4444' });
     if (todayTasks.length) groups.push({ key: 'today', label: 'Bugün', icon: Calendar, tasks: todayTasks, color: '#3b82f6' });
@@ -218,10 +228,10 @@ export function DailyTaskView({
             onChange={(e) => setFilterStatus(e.target.value)}
           >
             <option value="">Tümü</option>
-            <option value="TODO">Yapılacak</option>
+            <option value="PENDING">Beklemede</option>
             <option value="IN_PROGRESS">Devam Eden</option>
-            <option value="WAITING_REVIEW">İncelemede</option>
-            <option value="COMPLETED">Tamamlanan</option>
+            <option value="SUBMITTED">İncelemede</option>
+            <option value="MANAGER_APPROVED">Tamamlanan</option>
           </select>
         </div>
       </div>
@@ -280,11 +290,11 @@ function TaskCard({
 }) {
   const priorityColor = getPriorityColor(task.priority);
   const statusColor = getStatusColor(task.status);
-  const isTaskOverdue = isOverdue(task.dueDate) && task.status !== 'COMPLETED';
+  const isTaskOverdue = isOverdue(task.dueDate) && !['MANAGER_APPROVED', 'ADMIN_APPROVED'].includes(task.status);
 
-  const nextStatus = task.status === 'TODO' ? 'IN_PROGRESS'
-    : task.status === 'IN_PROGRESS' ? 'WAITING_REVIEW'
-    : task.status === 'WAITING_REVIEW' ? 'COMPLETED'
+  const nextStatus = task.status === 'PENDING' ? 'IN_PROGRESS'
+    : task.status === 'IN_PROGRESS' ? 'SUBMITTED'
+    : task.status === 'SUBMITTED' ? 'MANAGER_APPROVED'
     : null;
 
   return (

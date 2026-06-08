@@ -38,11 +38,36 @@ enum TaskPriority {
 }
 
 enum TaskStatus {
-  TODO
+  POOL
+  ASSIGNED_TO_MANAGER
+  ASSIGNED_TO_EMPLOYEE
+  PENDING
   IN_PROGRESS
-  WAITING_REVIEW
-  COMPLETED
+  PARTIALLY_COMPLETED
+  BLOCKED
+  SUBMITTED
+  REVISION_REQUESTED
+  MANAGER_APPROVED
+  ADMIN_APPROVED
   CANCELLED
+}
+
+enum TaskType {
+  SOFTWARE
+  DESIGN
+  CONTENT
+  TEST
+  OPERATION
+  MARKETING
+  OTHER
+}
+
+enum CommentType {
+  NORMAL
+  UPDATE
+  BLOCKER
+  REVISION
+  APPROVAL
 }
 
 enum FileType {
@@ -157,9 +182,12 @@ model User {
   managedTeams      Team[]       @relation("TeamManager")
   teamMemberships   TeamMember[]
 
-  assignedTasks Task[] @relation("AssignedTasks")
-  createdTasks  Task[] @relation("CreatedTasks")
-  taskComments  TaskComment[]
+  assignedTasks      Task[] @relation("AssignedTasks")
+  createdTasks       Task[] @relation("CreatedTasks")
+  responsibleTasks   Task[] @relation("ResponsibleManager")
+  taskComments       TaskComment[]
+  taskStatusLogs     TaskStatusLog[]
+  taskFiles          TaskFile[]
 
   uploadedFiles File[] @relation("UploadedFiles")
   employeeFiles File[] @relation("EmployeeFiles")
@@ -171,6 +199,7 @@ model User {
   notifications  Notification[]
   auditLogs      AuditLog[]      @relation("AuditActor")
   refreshTokens  RefreshToken[]
+  taskHistoryLogs TaskHistory[]   @relation("TaskHistoryUser")
 
   reports    Report[]
   feedbacks  Feedback[]
@@ -254,28 +283,37 @@ model Task {
   id                String       @id @default(uuid())
   title             String
   description       String?
+  taskType          TaskType     @default(OTHER)
   priority          TaskPriority @default(MEDIUM)
-  status            TaskStatus   @default(TODO)
+  status            TaskStatus   @default(POOL)
   assignedToId      String?
+  assignedToRole    UserRole?
   createdById       String
+  responsibleManagerId String?
+  parentTaskId      String?
   departmentId      String?
   dueDate           DateTime?
   estimatedMinutes  Int?
   actualMinutes     Int          @default(0)
   completionPercent Int          @default(0)
-  parentTaskId      String?
-  deletedAt         DateTime?
+  completedAt       DateTime?
+  approvedByManagerAt DateTime?
+  approvedByAdminAt   DateTime?
 
-  assignedTo User?       @relation("AssignedTasks", fields: [assignedToId], references: [id])
-  createdBy  User        @relation("CreatedTasks", fields: [createdById], references: [id])
-  department Department? @relation(fields: [departmentId], references: [id])
-  parentTask Task?       @relation("SubTasks", fields: [parentTaskId], references: [id])
-  subTasks   Task[]      @relation("SubTasks")
+  assignedTo   User?  @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdBy    User   @relation("CreatedTasks", fields: [createdById], references: [id])
+  responsibleManager User? @relation("ResponsibleManager", fields: [responsibleManagerId], references: [id])
+  parentTask   Task?  @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subTasks     Task[] @relation("SubTasks")
+  department   Department? @relation(fields: [departmentId], references: [id])
 
   comments    TaskComment[]
   attachments TaskAttachment[]
-  files       File[]
-  history     TaskHistory[]
+  files       TaskFile[]
+  history     TaskStatusLog[]
+  taskHistory TaskHistory[] @relation("TaskHistoryTask")
+  fileAttachments File[] @relation("FileTask")
+  deletedAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -283,16 +321,17 @@ model Task {
   @@index([assignedToId])
   @@index([createdById])
   @@index([status])
-  @@index([priority])
-  @@index([dueDate])
+  @@index([parentTaskId])
+  @@index([responsibleManagerId])
   @@map("tasks")
 }
 
 model TaskComment {
-  id      String @id @default(uuid())
-  taskId  String
-  userId  String
-  comment String
+  id          String      @id @default(uuid())
+  taskId      String
+  userId      String
+  message     String
+  commentType CommentType @default(NORMAL)
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])
@@ -301,6 +340,41 @@ model TaskComment {
 
   @@index([taskId])
   @@map("task_comments")
+}
+
+model TaskStatusLog {
+  id          String     @id @default(uuid())
+  taskId      String
+  changedById String?
+  oldStatus   TaskStatus?
+  newStatus   TaskStatus
+  note        String?
+
+  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  changedBy User? @relation(fields: [changedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@map("task_status_logs")
+}
+
+model TaskFile {
+  id           String   @id @default(uuid())
+  taskId       String
+  uploadedById String
+  fileName     String
+  fileUrl      String
+  fileType     String
+  fileSize     Int
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@map("task_files")
 }
 
 model TaskAttachment {
@@ -318,7 +392,7 @@ model TaskAttachment {
 }
 
 model TaskHistory {
-  id        String     @id @default(uuid())
+  id        String      @id @default(uuid())
   taskId    String
   userId    String?
   oldStatus TaskStatus?
@@ -328,7 +402,8 @@ model TaskHistory {
   newValue  String?
   note      String?
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task Task @relation("TaskHistoryTask", fields: [taskId], references: [id], onDelete: Cascade)
+  user User? @relation("TaskHistoryUser", fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -353,7 +428,7 @@ model File {
   deletedAt    DateTime?
 
   uploadedBy  User             @relation("UploadedFiles", fields: [uploadedById], references: [id])
-  task        Task?            @relation(fields: [taskId], references: [id])
+  task        Task?            @relation("FileTask", fields: [taskId], references: [id])
   employee    User?            @relation("EmployeeFiles", fields: [employeeId], references: [id])
   attachments TaskAttachment[]
 

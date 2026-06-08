@@ -292,9 +292,9 @@ export function EmployeeDashboard() {
                   >
                     <div style={{
                       width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      background: task.status === 'COMPLETED' ? 'var(--success)' :
+                      background: ['MANAGER_APPROVED', 'ADMIN_APPROVED'].includes(task.status) ? 'var(--success)' :
                                   task.status === 'IN_PROGRESS' ? 'var(--accent)' :
-                                  task.status === 'WAITING_REVIEW' ? 'var(--warning)' :
+                                  task.status === 'SUBMITTED' ? 'var(--warning)' :
                                   task.status === 'CANCELLED' ? 'var(--danger)' : 'var(--border)',
                     }} />
                     <div style={{ flex: 1, minWidth: 0 }}>

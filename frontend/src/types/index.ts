@@ -9,11 +9,19 @@ export type EmployeeStatus =
   | 'WORK_SESSION_ENDED';
 
 export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type TaskType = 'SOFTWARE' | 'DESIGN' | 'CONTENT' | 'TEST' | 'OPERATION' | 'MARKETING' | 'OTHER';
 export type TaskStatus =
-  | 'TODO'
+  | 'POOL'
+  | 'ASSIGNED_TO_MANAGER'
+  | 'ASSIGNED_TO_EMPLOYEE'
+  | 'PENDING'
   | 'IN_PROGRESS'
-  | 'WAITING_REVIEW'
-  | 'COMPLETED'
+  | 'PARTIALLY_COMPLETED'
+  | 'BLOCKED'
+  | 'SUBMITTED'
+  | 'REVISION_REQUESTED'
+  | 'MANAGER_APPROVED'
+  | 'ADMIN_APPROVED'
   | 'CANCELLED';
 
 export interface User {
@@ -84,23 +92,35 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
+  taskType: TaskType;
   priority: TaskPriority;
   status: TaskStatus;
   assignedToId?: string;
+  assignedToRole?: UserRole;
   createdById: string;
+  responsibleManagerId?: string;
   departmentId?: string;
   parentTaskId?: string;
   dueDate?: string;
   estimatedMinutes?: number;
   actualMinutes: number;
   completionPercent: number;
+  completedAt?: string;
+  approvedByManagerAt?: string;
+  approvedByAdminAt?: string;
   assignedTo?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
   createdBy?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
+  responsibleManager?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>;
   department?: Pick<Department, 'id' | 'name'>;
+  parentTask?: { id: string; title: string; status: TaskStatus };
   comments?: TaskComment[];
   attachments?: TaskAttachment[];
+  files?: Array<{ id: string; fileName: string; fileUrl: string; fileType: string; fileSize: number; uploadedBy: { firstName: string; lastName: string }; createdAt: string }>;
   subTasks?: Array<{ id: string; title: string; status: TaskStatus; assignedToId?: string }>;
-  _count?: { subTasks: number };
+  taskHistory?: Array<{ id: string; oldStatus?: string; newStatus: string; note?: string; createdAt: string; user?: { firstName: string; lastName: string } }>;
+  _count?: { subTasks: number; files: number; comments: number };
+  isOverdue?: boolean;
+  statusLabel?: string;
   createdAt: string;
   updatedAt: string;
 }
