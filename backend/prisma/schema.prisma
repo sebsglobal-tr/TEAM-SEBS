@@ -186,7 +186,6 @@ model User {
   createdTasks       Task[] @relation("CreatedTasks")
   responsibleTasks   Task[] @relation("ResponsibleManager")
   taskComments       TaskComment[]
-  taskStatusLogs     TaskStatusLog[]
   taskFiles          TaskFile[]
 
   uploadedFiles File[] @relation("UploadedFiles")
@@ -310,7 +309,6 @@ model Task {
   comments    TaskComment[]
   attachments TaskAttachment[]
   files       TaskFile[]
-  history     TaskStatusLog[]
   taskHistory TaskHistory[] @relation("TaskHistoryTask")
   fileAttachments File[] @relation("FileTask")
   deletedAt   DateTime?
@@ -340,23 +338,6 @@ model TaskComment {
 
   @@index([taskId])
   @@map("task_comments")
-}
-
-model TaskStatusLog {
-  id          String     @id @default(uuid())
-  taskId      String
-  changedById String?
-  oldStatus   TaskStatus?
-  newStatus   TaskStatus
-  note        String?
-
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  changedBy User? @relation(fields: [changedById], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@index([taskId])
-  @@map("task_status_logs")
 }
 
 model TaskFile {
