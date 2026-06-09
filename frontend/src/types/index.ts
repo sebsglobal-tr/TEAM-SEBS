@@ -61,11 +61,14 @@ export interface Department {
   _count?: { members: number; teams: number };
 }
 
+export type CommentType = 'NORMAL' | 'UPDATE' | 'BLOCKER' | 'REVISION' | 'APPROVAL';
+
 export interface TaskComment {
   id: string;
   taskId: string;
   userId: string;
-  comment: string;
+  message: string;
+  commentType: CommentType;
   createdAt: string;
   user?: Pick<User, 'id' | 'firstName' | 'lastName'>;
 }
@@ -92,6 +95,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
+  expectedOutput?: string;
   taskType: TaskType;
   priority: TaskPriority;
   status: TaskStatus;

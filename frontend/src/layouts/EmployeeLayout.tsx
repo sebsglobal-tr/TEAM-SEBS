@@ -11,6 +11,8 @@ import {
   Menu,
   X,
   Bell,
+  CheckSquare,
+  Clock,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -19,10 +21,11 @@ import './layout.css';
 
 const employeeNav = [
   { to: '/employee/dashboard', icon: LayoutDashboard, label: 'Ana Sayfa' },
+  { to: '/employee/tasks', icon: CheckSquare, label: 'Görevlerim' },
   { to: '/employee/timer', icon: Timer, label: 'Çalışma Sayacı' },
-  { to: '/employee/upload-report', icon: Upload, label: 'Rapor Yükle' },
   { to: '/employee/reports', icon: FileText, label: 'Raporlarım' },
   { to: '/employee/files', icon: FolderOpen, label: 'Dosyalarım' },
+  { to: '/employee/history', icon: Clock, label: 'Geçmiş' },
   { to: '/employee/feedbacks', icon: MessageSquare, label: 'Geri Bildirimler' },
   { to: '/employee/profile', icon: UserCircle, label: 'Profil' },
 ];

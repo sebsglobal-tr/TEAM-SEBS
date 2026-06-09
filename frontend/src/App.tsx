@@ -140,12 +140,15 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/employee/dashboard" replace />} />
         <Route path="dashboard" element={<EmployeeDashboardPage />} />
+        <Route path="tasks" element={<EmployeeTasksPage />} />
+        <Route path="tasks/:id" element={<EmployeeTaskDetail />} />
         <Route path="timer" element={<EmployeeTimer />} />
         <Route path="upload-report" element={<EmployeeUploadReport />} />
         <Route path="reports" element={<EmployeeReports />} />
         <Route path="reports/:id" element={<EmployeeReportDetail />} />
         <Route path="files" element={<EmployeeFiles />} />
         <Route path="feedbacks" element={<EmployeeFeedbacks />} />
+        <Route path="history" element={<EmployeeHistory />} />
         <Route path="profile" element={<EmployeeProfile />} />
       </Route>
 
@@ -185,10 +188,13 @@ import { ManagerProfile } from './pages/manager/ManagerProfile';
 
 // Employee Pages
 import { EmployeeDashboard as EmployeeDashboardPage } from './pages/employee/EmployeeDashboard';
+import { EmployeeTasks as EmployeeTasksPage } from './pages/employee/EmployeeTasks';
+import { EmployeeTaskDetail } from './pages/employee/EmployeeTaskDetail';
 import { EmployeeTimer } from './pages/employee/EmployeeTimer';
 import { EmployeeUploadReport } from './pages/employee/EmployeeUploadReport';
 import { EmployeeReports } from './pages/employee/EmployeeReports';
 import { EmployeeReportDetail } from './pages/employee/EmployeeReportDetail';
 import { EmployeeFiles } from './pages/employee/EmployeeFiles';
 import { EmployeeFeedbacks } from './pages/employee/EmployeeFeedbacks';
+import { EmployeeHistory } from './pages/employee/EmployeeHistory';
 import { EmployeeProfile } from './pages/employee/EmployeeProfile';

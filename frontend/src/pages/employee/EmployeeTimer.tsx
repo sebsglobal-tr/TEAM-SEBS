@@ -1,11 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Play, Square, Coffee, RotateCcw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Play, Square, Coffee, RotateCcw, CheckCircle } from 'lucide-react';
 import { workSessionsService } from '../../services/work-sessions.service';
 import { useWorkSessionHeartbeat } from '../../hooks/useWorkSessionHeartbeat';
 import { formatDuration } from '../../utils/format';
 import type { WorkSessionToday } from '../../types';
 
 export function EmployeeTimer() {
+  const navigate = useNavigate();
+  const [showEndOfDay, setShowEndOfDay] = useState(false);
   const [session, setSession] = useState<WorkSessionToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -141,6 +144,7 @@ export function EmployeeTimer() {
                 onClick={() => handleAction(() => workSessionsService.stop(), () => {
                   setIsOnBreak(false);
                   setElapsedSeconds(0);
+                  setShowEndOfDay(true);
                 })}
                 disabled={actionLoading}
               >
@@ -174,6 +178,48 @@ export function EmployeeTimer() {
           </div>
         )}
       </div>
+
+      {/* Gün Sonu Raporu Modal */}
+      {showEndOfDay && (
+        <div className="modal-overlay" onClick={() => setShowEndOfDay(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h3>Çalışma Sonlandı 🎯</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowEndOfDay(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <CheckCircle size={48} style={{ color: '#10b981', marginBottom: '0.5rem' }} />
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Bugünkü çalışmanız kaydedildi.<br />
+                  Gün sonu raporu eklemek ister misiniz?
+                </div>
+              </div>
+              <div style={{
+                background: 'rgba(16,185,129,0.08)', borderRadius: 8,
+                padding: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5,
+              }}>
+                <strong>Rapor şunları içerebilir:</strong><br />
+                · Bugün ne yaptım?<br />
+                · Hangi görevi tamamladım?<br />
+                · Nerede takıldım?<br />
+                · Yarın ne kalıyor?
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowEndOfDay(false)}>
+                Daha Sonra
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
+                setShowEndOfDay(false);
+                navigate('/employee/upload-report');
+              }}>
+                Rapor Ekle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

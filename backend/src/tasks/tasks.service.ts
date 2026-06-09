@@ -77,6 +77,7 @@ export class TasksService {
     const data: any = {
       title: dto.title,
       description: dto.description,
+      expectedOutput: (dto as any).expectedOutput,
       taskType: dto.taskType ?? TaskType.OTHER,
       priority: dto.priority ?? TaskPriority.MEDIUM,
       status: dto.status ?? TaskStatus.POOL,

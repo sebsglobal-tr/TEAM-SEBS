@@ -282,6 +282,7 @@ model Task {
   id                String       @id @default(uuid())
   title             String
   description       String?
+  expectedOutput    String?
   taskType          TaskType     @default(OTHER)
   priority          TaskPriority @default(MEDIUM)
   status            TaskStatus   @default(POOL)

@@ -30,6 +30,10 @@ export class CreateBulkTaskDto {
   @IsOptional()
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  expectedOutput?: string;
+
   @IsEnum(TaskType)
   @IsOptional()
   taskType?: TaskType;
@@ -80,6 +84,10 @@ export class CreateTaskDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  expectedOutput?: string;
 
   @IsEnum(TaskType)
   @IsOptional()

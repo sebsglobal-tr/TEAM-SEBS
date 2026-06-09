@@ -2,56 +2,64 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Clock, Coffee, Play, Square, FileText, Upload,
-  ListTodo, CheckSquare, BarChart3, ChevronLeft, ChevronRight,
+  ListTodo, AlertCircle, CheckCircle, AlertTriangle,
+  ArrowRight, MessageSquare, User, Calendar,
 } from 'lucide-react';
 import { workSessionsService } from '../../services/work-sessions.service';
 import { filesService, type FileRecord } from '../../services/files.service';
 import { tasksService } from '../../services/tasks.service';
-import { api } from '../../services/api';
-import { DailyTaskView } from '../../components/DailyTaskView';
 import { useWorkSessionHeartbeat } from '../../hooks/useWorkSessionHeartbeat';
-import { formatDuration } from '../../utils/format';
+import { formatDuration, formatDate } from '../../utils/format';
+import { useAuth } from '../../hooks/useAuth';
 import type { WorkSessionToday, Task } from '../../types';
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+// ─── Helpers ────────────────────────────────────────────────────
+
+const STATUS_LABELS: Record<string, string> = {
+  IN_PROGRESS: 'Devam Ediyor',
+  BLOCKED: 'Blokaj Var',
+  SUBMITTED: 'İncelemede',
+  REVISION_REQUESTED: 'Revize İstendi',
+  MANAGER_APPROVED: 'Onaylandı',
+  ADMIN_APPROVED: 'Admin Onaylı',
+};
+
+function isDueSoon(task: Task): boolean {
+  if (!task.dueDate) return false;
+  if (['MANAGER_APPROVED', 'ADMIN_APPROVED', 'CANCELLED'].includes(task.status)) return false;
+  const diff = new Date(task.dueDate).getTime() - Date.now();
+  return diff > 0 && diff < 24 * 60 * 60 * 1000;
 }
 
-const TR_DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-
-function getMonday(d: Date): Date {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
+function isOverdue(task: Task): boolean {
+  if (!task.dueDate) return false;
+  if (['MANAGER_APPROVED', 'ADMIN_APPROVED', 'CANCELLED'].includes(task.status)) return false;
+  return new Date(task.dueDate) < new Date();
 }
 
-function formatDateTR(d: Date): string {
-  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
-}
+// ─── Component ──────────────────────────────────────────────────
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
+  const [showEndOfDay, setShowEndOfDay] = useState(false);
+  const [stopLoading, setStopLoading] = useState(false);
+
+  const { user } = useAuth();
   const [session, setSession] = useState<WorkSessionToday | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [recentFiles, setRecentFiles] = useState<FileRecord[]>([]);
+  const [feedbackCount, setFeedbackCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [isOnBreak, setIsOnBreak] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState(() => getMonday(new Date()));
-  const [uploadingTask, setUploadingTask] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingTaskRef = useRef<string | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       const [s, t, f] = await Promise.all([
         workSessionsService.getToday(),
-        tasksService.getAll({ limit: "20" }),
+        tasksService.getAll({ limit: '50' }),
         filesService.getAll({ limit: 5 }),
       ]);
       setSession(s);
@@ -67,46 +75,60 @@ export function EmployeeDashboard() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const activeSession = session?.activeSession;
+
+  // Real-time counter
+  useEffect(() => {
+    if (!activeSession || isOnBreak) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    const startedAt = new Date(activeSession.startedAt).getTime();
+    const calcElapsed = () => {
+      const total = Math.floor((Date.now() - startedAt) / 1000);
+      setElapsedSeconds(total);
+    };
+    calcElapsed();
+    intervalRef.current = setInterval(calcElapsed, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [activeSession, isOnBreak]);
+
   useWorkSessionHeartbeat({
     isSessionActive: !!activeSession,
     isOnBreak,
     onUpdate: loadData,
   });
 
+  const handleStop = async () => {
+    setStopLoading(true);
+    try {
+      await workSessionsService.stop();
+      setIsOnBreak(false);
+      setElapsedSeconds(0);
+      setShowEndOfDay(true);
+    } finally {
+      setStopLoading(false);
+    }
+  };
+
   const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
     setActionLoading(true);
     try { await action(); onSuccess?.(); loadData(); } finally { setActionLoading(false); }
   };
 
-  const handleStatusChange = async (taskId: string, status: string) => {
-    try {
-      await tasksService.updateStatus(taskId, status);
-      const updated = await tasksService.getAll({ limit: "20" });
-      setTasks(updated);
-    } catch (err) {
-      console.error('Görev durumu güncellenirken hata:', err);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const taskId = pendingTaskRef.current;
-    if (!file || !taskId) return;
-    setUploadingTask(taskId);
-    try {
-      await filesService.upload(file, { taskId, fileType: 'TASK_ATTACHMENT', description: file.name });
-      loadData();
-    } finally {
-      setUploadingTask(null);
-      pendingTaskRef.current = null;
-      if (e.target) e.target.value = '';
-    }
-  };
-
-  const triggerFileUpload = (taskId: string) => {
-    pendingTaskRef.current = taskId;
-    fileInputRef.current?.click();
-  };
+  // Kategorize et (only employee's tasks)
+  const myTasks = tasks.filter(t => t.assignedToId === user?.id);
+  const todayTasks = myTasks.filter(t => {
+    if (!t.dueDate) return false;
+    const today = new Date();
+    const due = new Date(t.dueDate);
+    return due.toDateString() === today.toDateString();
+  });
+  const revisionTasks = myTasks.filter(t => t.status === 'REVISION_REQUESTED');
+  const dueSoonTasks = myTasks.filter(isDueSoon);
+  const overdueTasks = myTasks.filter(isOverdue);
+  const ongoingTasks = myTasks.filter(t =>
+    ['IN_PROGRESS', 'ASSIGNED_TO_EMPLOYEE', 'PENDING', 'PARTIALLY_COMPLETED'].includes(t.status)
+  );
 
   const formatHHMMSS = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
@@ -115,68 +137,84 @@ export function EmployeeDashboard() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // ── Haftalık görev gruplaması ──
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(currentWeek);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
-
-  const weekTasks = weekDays.map((day) => {
-    const dayStart = new Date(day);
-    const dayEnd = new Date(day);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    return {
-      date: day,
-      label: formatDateTR(day),
-      dayName: TR_DAYS[day.getDay() === 0 ? 6 : day.getDay() - 1],
-      isToday: day.toDateString() === new Date().toDateString(),
-      tasks: tasks.filter((t) => {
-        const d = t.dueDate ? new Date(t.dueDate) : new Date(t.createdAt);
-        return d >= dayStart && d <= dayEnd;
-      }),
-    };
-  });
-
   if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
   return (
     <div>
-      {/* ─── ÜST: Saat + Oturum ─── */}
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+      {/* ─── Başlık + Canlı Sayaç ─── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem',
+      }}>
         <div>
-          <h1 className="page-title">Ana Sayfa</h1>
-          <p className="page-subtitle">Günlük görev takviminiz ve çalışma takibiniz</p>
+          <h1 className="page-title" style={{ margin: 0 }}>Merhaba, {user?.firstName} 👋</h1>
+          <p className="page-subtitle" style={{ margin: '0.15rem 0 0 0' }}>
+            {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {/* Timer control */}
-          {!activeSession ? (
-            <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.start())} disabled={actionLoading}>
-              <Play size={14} /> Başla
-            </button>
-          ) : (
+
+        {/* Canlı sayaç */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem',
+          padding: '0.5rem 1rem', background: activeSession ? 'rgba(16,185,129,0.1)' : 'var(--bg-primary)',
+          borderRadius: 12, border: `1px solid ${activeSession ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
+        }}>
+          {activeSession ? (
             <>
-              {!isOnBreak ? (
-                <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.startBreak(), () => setIsOnBreak(true))} disabled={actionLoading}>
-                  <Coffee size={14} /> Mola
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'monospace', color: '#10b981', letterSpacing: 2 }}>
+                  {formatHHMMSS(elapsedSeconds)}
+                </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                  {isOnBreak ? 'Molada' : 'Çalışıyor'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.35rem', flexDirection: 'column' }}>
+                {!isOnBreak ? (
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.startBreak(), () => setIsOnBreak(true))} disabled={actionLoading}>
+                    <Coffee size={12} /> Mola
+                  </button>
+                ) : (
+                  <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.endBreak(), () => setIsOnBreak(false))} disabled={actionLoading}>
+                    Moladan Dön
+                  </button>
+                )}
+                <button className="btn btn-danger btn-sm" onClick={handleStop} disabled={stopLoading}>
+                  <Square size={12} /> Bitir
                 </button>
-              ) : (
-                <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.endBreak(), () => setIsOnBreak(false))} disabled={actionLoading}>
-                  Mola Bitir
-                </button>
-              )}
-              <button className="btn btn-danger btn-sm" onClick={() => handleAction(() => workSessionsService.stop(), () => setIsOnBreak(false))} disabled={actionLoading}>
-                <Square size={14} /> Bitir
-              </button>
+              </div>
             </>
+          ) : (
+            <button className="btn btn-primary" onClick={() => handleAction(() => workSessionsService.start())} disabled={actionLoading}>
+              <Play size={16} /> Çalışmayı Başlat
+            </button>
           )}
         </div>
       </div>
 
-      {/* Süre kartları */}
-      <div className="stats-grid" style={{ marginBottom: '1rem' }}>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/timer')}>
+      {/* ─── Özet Kartları ─── */}
+      <div className="stats-grid" style={{ marginBottom: '1.25rem' }}>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+          <div className="stat-card-icon employee" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+            <ListTodo size={20} />
+          </div>
+          <div>
+            <div className="stat-card-label">Devam Eden Görev</div>
+            <div className="stat-card-value">{ongoingTasks.length}</div>
+          </div>
+        </div>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+          <div className="stat-card-icon employee" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <div className="stat-card-label">Revize İstenen</div>
+            <div className="stat-card-value" style={{ color: revisionTasks.length > 0 ? '#ef4444' : undefined }}>
+              {revisionTasks.length}
+            </div>
+          </div>
+        </div>
+        <div className="stat-card">
           <div className="stat-card-icon employee" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
             <Clock size={20} />
           </div>
@@ -187,157 +225,284 @@ export function EmployeeDashboard() {
         </div>
         <div className="stat-card">
           <div className="stat-card-icon employee" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-            <Clock size={20} />
+            <Coffee size={20} />
           </div>
           <div>
             <div className="stat-card-label">Mola</div>
             <div className="stat-card-value">{formatDuration(session?.totals.break ?? 0)}</div>
           </div>
         </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/reports')}>
-          <div className="stat-card-icon employee"><FileText size={20} /></div>
-          <div>
-            <div className="stat-card-label">Raporlarım</div>
-            <div className="stat-card-value">{tasks.length} görev</div>
-          </div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/upload-report')}>
-          <div className="stat-card-icon employee"><Upload size={20} /></div>
-          <div>
-            <div className="stat-card-label">Rapor Yükle</div>
-            <div className="stat-card-value" style={{ fontSize: '0.85rem' }}>Hemen başla</div>
-          </div>
-        </div>
       </div>
 
-      {/* ─── GÜNLÜK GÖREV TAKVİMİ ─── */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div className="card-header">
-          <div>
-            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ListTodo size={18} /> Günlük Görev Takvimi
-            </div>
-            <div className="card-subtitle">Görevlerinizin akış içinde takibi</div>
-          </div>
-        </div>
-        <div className="card-body" style={{ paddingTop: '0.5rem' }}>
-          <DailyTaskView
-            tasks={tasks}
-            onStatusChange={handleStatusChange}
-            onViewDetail={(id) => navigate(`/tasks/${id}`)}
-            onUploadFile={triggerFileUpload}
-          />
-          <input ref={fileInputRef} type="file" hidden onChange={handleFileUpload} />
-        </div>
-      </div>
-
-      {/* ─── HAFTALIK GÖREV TAKVİMİ (mini) ─── */}
-      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Haftalık Görünüm</h2>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(currentWeek); d.setDate(d.getDate() - 7); setCurrentWeek(d); }}>
-            <ChevronLeft size={16} />
-          </button>
-          <span style={{ fontSize: '0.85rem', fontWeight: 500, minWidth: 180, textAlign: 'center' }}>
-            {formatDateTR(weekDays[0])} - {formatDateTR(weekDays[6])}
+      {/* ─── Uyarılar ─── */}
+      {revisionTasks.length > 0 && (
+        <div style={{
+          padding: '0.75rem 1rem', marginBottom: '1rem',
+          background: 'rgba(239,68,68,0.1)', borderRadius: 8,
+          border: '1px solid rgba(239,68,68,0.2)',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          cursor: 'pointer',
+        }} onClick={() => navigate('/employee/tasks')}>
+          <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.85rem', color: '#ef4444', flex: 1 }}>
+            <strong>{revisionTasks.length} görevde</strong> revize istenmiş. Gözden geçirmek için tıklayın.
           </span>
-          <button className="btn btn-ghost btn-sm" onClick={() => { const d = new Date(currentWeek); d.setDate(d.getDate() + 7); setCurrentWeek(d); }}>
-            <ChevronRight size={16} />
-          </button>
+          <ArrowRight size={16} style={{ color: '#ef4444' }} />
         </div>
-      </div>
+      )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        {weekTasks.map((day) => (
-          <div
-            key={day.date.toISOString()}
-            style={{
-              border: `1px solid ${day.isToday ? 'var(--accent)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius)',
-              background: day.isToday ? 'rgba(5,150,105,0.04)' : 'var(--bg-secondary)',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.6rem 1rem',
-                background: day.isToday ? 'var(--accent)' : 'var(--bg-primary)',
-                color: day.isToday ? 'white' : 'var(--text-primary)',
-                fontWeight: 600, fontSize: '0.85rem',
-              }}
-            >
-              <span>{day.dayName} {day.label}</span>
-              <span style={{ opacity: day.isToday ? 0.9 : 0.6, fontSize: '0.8rem' }}>
-                {day.tasks.length} görev
-              </span>
-            </div>
+      {overdueTasks.length > 0 && (
+        <div style={{
+          padding: '0.75rem 1rem', marginBottom: '1rem',
+          background: 'rgba(245,158,11,0.1)', borderRadius: 8,
+          border: '1px solid rgba(245,158,11,0.2)',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          cursor: 'pointer',
+        }} onClick={() => navigate('/employee/tasks')}>
+          <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.85rem', color: '#f59e0b', flex: 1 }}>
+            <strong>{overdueTasks.length} gecikmiş</strong> görev bulunuyor.
+          </span>
+          <ArrowRight size={16} style={{ color: '#f59e0b' }} />
+        </div>
+      )}
 
-            {day.tasks.length === 0 ? (
-              <div style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                Bu güne ait görev bulunmuyor.
+      {/* ─── Ana İçerik: 2 Kolon ─── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+        {/* Sol: Görevler */}
+        <div>
+          {/* Bugünkü Görevler */}
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Calendar size={16} /> Bugünkü Görevlerim
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {day.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      padding: '0.6rem 1rem',
-                      borderBottom: '1px solid var(--border)',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => navigate(`/tasks/${task.id}`)}
-                  >
+              <ArrowRight size={14} />
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {todayTasks.length === 0 ? (
+                <div style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>
+                  Bugün teslim edilmesi gereken görev yok.
+                </div>
+              ) : (
+                todayTasks.slice(0, 5).map(task => (
+                  <div key={task.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }} onClick={() => navigate(`/employee/tasks/${task.id}`)}>
                     <div style={{
-                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      background: ['MANAGER_APPROVED', 'ADMIN_APPROVED'].includes(task.status) ? 'var(--success)' :
-                                  task.status === 'IN_PROGRESS' ? 'var(--accent)' :
-                                  task.status === 'SUBMITTED' ? 'var(--warning)' :
-                                  task.status === 'CANCELLED' ? 'var(--danger)' : 'var(--border)',
+                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                      background: task.status === 'IN_PROGRESS' ? '#3b82f6' :
+                                  task.status === 'REVISION_REQUESTED' ? '#ef4444' :
+                                  task.status === 'SUBMITTED' ? '#f59e0b' : '#d1d5db',
                     }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex: 1, fontSize: '0.85rem' }}>{task.title}</div>
+                    <span className={`badge ${task.priority === 'URGENT' ? 'badge-danger' : task.priority === 'HIGH' ? 'badge-warning' : 'badge-default'}`} style={{ fontSize: '0.65rem' }}>
+                      {task.priority}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Devam Eden Görevler */}
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <ListTodo size={16} /> Devam Eden Görevlerim
+              </div>
+              <ArrowRight size={14} />
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {ongoingTasks.length === 0 ? (
+                <div style={{ padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>
+                  Devam eden görev bulunmuyor.
+                </div>
+              ) : (
+                ongoingTasks.slice(0, 5).map(task => (
+                  <div key={task.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }} onClick={() => navigate(`/employee/tasks/${task.id}`)}>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{task.title}</div>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.15rem' }}>
-                        <span className={`badge ${task.priority === 'URGENT' || task.priority === 'HIGH' ? 'badge-danger' : 'badge-default'}`}>
-                          {task.priority}
-                        </span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                          %{task.completionPercent}
-                        </span>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.5rem' }}>
+                        <span>%{task.completionPercent}</span>
+                        {task.dueDate && <span>Son: {formatDate(task.dueDate)}</span>}
                       </div>
+                    </div>
+                    <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>
+                      {STATUS_LABELS[task.status] ?? task.status}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Teslim Tarihi Yaklaşanlar */}
+          {dueSoonTasks.length > 0 && (
+            <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #f59e0b' }}>
+              <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#f59e0b' }}>
+                  <Clock size={16} /> Teslim Tarihi Yaklaşanlar
+                </div>
+                <ArrowRight size={14} />
+              </div>
+              <div className="card-body" style={{ padding: 0 }}>
+                {dueSoonTasks.slice(0, 4).map(task => (
+                  <div key={task.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }} onClick={() => navigate(`/employee/tasks/${task.id}`)}>
+                    <div style={{ flex: 1, fontSize: '0.85rem' }}>{task.title}</div>
+                    <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 600 }}>
+                      {formatDate(task.dueDate!)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sağ: Süre + Dosyalar + Feedback */}
+        <div>
+          {/* Bugünkü süre detayı */}
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/timer')}>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Clock size={16} /> Bugünkü Çalışma Sürem
+              </div>
+              <ArrowRight size={14} />
+            </div>
+            <div className="card-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(16,185,129,0.08)', borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Aktif</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981' }}>
+                    {formatDuration(session?.totals.active ?? 0)}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(245,158,11,0.08)', borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Mola</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b' }}>
+                    {formatDuration(session?.totals.break ?? 0)}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(99,102,241,0.08)', borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Başlangıç</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                    {activeSession ? new Date(activeSession.startedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(239,68,68,0.08)', borderRadius: 8 }}>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Durum</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: activeSession ? (isOnBreak ? '#f59e0b' : '#10b981') : '#6b7280' }}>
+                    {activeSession ? (isOnBreak ? 'Molada' : 'Çalışıyor') : 'Başlatılmadı'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Dosya/Rapor Yükleme İhtiyacı */}
+          {session?.activeSession && (
+            <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/employee/upload-report')}>
+              <div className="card-body" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Upload size={18} style={{ color: 'var(--accent)' }} />
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Gün Sonu Raporu</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Çalışmayı bitirmeden raporunuzu yükleyin
+                  </div>
+                </div>
+                <ArrowRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }} />
+              </div>
+            </div>
+          )}
+
+          {/* Son Yüklenen Dosyalar */}
+          {recentFiles.length > 0 && (
+            <div className="card" style={{ marginBottom: '1rem' }}>
+              <div className="card-header">
+                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <FileText size={16} /> Son Dosyalarım
+                </div>
+              </div>
+              <div className="card-body" style={{ padding: 0 }}>
+                {recentFiles.slice(0, 4).map(file => (
+                  <div key={file.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.5rem 1rem', borderBottom: '1px solid var(--border)',
+                  }}>
+                    <FileText size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    <div style={{ flex: 1, fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {file.originalName}
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Geri Bildirimler */}
+          <div className="card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/feedbacks')}>
+            <div className="card-header">
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <MessageSquare size={16} /> Geri Bildirimler
+              </div>
+              <ArrowRight size={14} />
+            </div>
+            <div className="card-body" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Yöneticinizden gelen geri bildirimleri görüntüleyin
+            </div>
           </div>
-        ))}
+        </div>
       </div>
 
-      {/* ─── SON DOSYALARIM ─── */}
-      {recentFiles.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Son Yüklediğim Dosyalar</div>
-          </div>
-          <div className="card-body">
-            {recentFiles.map((file) => (
-              <div key={file.id} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.5rem 0', borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileText size={14} style={{ color: 'var(--accent)' }} />
-                  <span style={{ fontSize: '0.85rem' }}>{file.originalName}</span>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{formatFileSize(file.size)}</span>
+      {/* ─── Gün Sonu Raporu Modal ─── */}
+      {showEndOfDay && (
+        <div className="modal-overlay" onClick={() => setShowEndOfDay(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h3>Çalışma Sonlandı 🎯</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowEndOfDay(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <CheckCircle size={48} style={{ color: '#10b981', marginBottom: '0.5rem' }} />
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Bugünkü çalışmanız kaydedildi.<br />
+                  Gün sonu raporu eklemek ister misiniz?
                 </div>
-                <button className="btn btn-ghost btn-sm" onClick={() => filesService.download(file.id, file.originalName)}>
-                  İndir
-                </button>
               </div>
-            ))}
+              <div style={{
+                background: 'rgba(16,185,129,0.08)', borderRadius: 8,
+                padding: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5,
+              }}>
+                <strong>Rapor şunları içerebilir:</strong><br />
+                · Bugün ne yaptım?<br />
+                · Hangi görevi tamamladım?<br />
+                · Nerede takıldım?<br />
+                · Yarın ne kalıyor?
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowEndOfDay(false)}>
+                Daha Sonra
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
+                setShowEndOfDay(false);
+                navigate('/employee/upload-report');
+              }}>
+                Rapor Ekle
+              </button>
+            </div>
           </div>
         </div>
       )}
