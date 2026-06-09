@@ -25,7 +25,7 @@ export class UsersController {
   constructor(private usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN)
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtPayload) {
     return this.usersService.create(dto, user);
   }
@@ -88,7 +88,7 @@ export class UsersController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN)
   deactivate(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.usersService.deactivate(id, user);
   }
