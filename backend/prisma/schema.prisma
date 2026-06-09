@@ -330,7 +330,7 @@ model TaskComment {
   id          String      @id @default(uuid())
   taskId      String
   userId      String
-  message     String
+  message     String     @default("")
   commentType CommentType @default(NORMAL)
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
