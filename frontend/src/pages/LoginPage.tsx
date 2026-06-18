@@ -85,11 +85,6 @@ export function LoginPage() {
             Giriş Yap
           </Button>
         </form>
-
-        <div className="login-demo">
-          <p>Demo hesaplar:</p>
-          <code>admin@worktrack.local / Admin123!</code>
-        </div>
       </div>
     </div>
   );

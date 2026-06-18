@@ -9,12 +9,12 @@ async function main() {
   const passwordHash = await bcrypt.hash('Admin123!', 12);
 
   const superAdmin = await prisma.user.upsert({
-    where: { email: 'admin@worktrack.local' },
+    where: { email: 'abidinsametcay@sebsglobal.com' },
     update: {},
     create: {
-      firstName: 'Super',
-      lastName: 'Admin',
-      email: 'admin@worktrack.local',
+      firstName: 'Abidin Samet',
+      lastName: 'Çay',
+      email: 'abidinsametcay@sebsglobal.com',
       passwordHash,
       role: UserRole.SUPER_ADMIN,
       position: 'Sistem Yöneticisi',
@@ -275,7 +275,7 @@ async function main() {
   console.log('Seed completed!');
   console.log('');
   console.log('Test accounts:');
-  console.log('  Super Admin: admin@worktrack.local / Admin123!');
+  console.log('  Super Admin: abidinsametcay@sebsglobal.com / Admin123!');
   console.log('  Manager:     manager@worktrack.local / Manager123!');
   console.log('  Employee:    ayse.demir@worktrack.local / Employee123!');
 }

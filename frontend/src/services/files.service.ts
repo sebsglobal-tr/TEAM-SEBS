@@ -32,6 +32,19 @@ export const filesService = {
       .then((r) => r.data);
   },
 
+  uploadMultiple: (files: File[], options?: { taskId?: string; fileType?: string }) => {
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    if (options?.taskId) formData.append('taskId', options.taskId);
+    if (options?.fileType) formData.append('fileType', options.fileType);
+
+    return api
+      .post<{ count: number; files: FileRecord[] }>('/files/upload-multiple', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+
   download: async (id: string, filename: string) => {
     const response = await api.get(`/files/${id}/download`, { responseType: 'blob' });
     const url = window.URL.createObjectURL(response.data);

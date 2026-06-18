@@ -12,16 +12,22 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { LocalStorageProvider } from './storage/local-storage.provider';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
-const BLOCKED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.sh', '.scr', '.vbs'];
+const BLOCKED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.scr', '.vbs'];
 const ALLOWED_MIME_PREFIXES = [
   'image/',
   'application/pdf',
   'application/msword',
   'application/vnd.',
-  'text/plain',
-  'text/csv',
+  'text/',
+  'application/json',
+  'application/xml',
+  'application/javascript',
+  'application/java',
   'application/zip',
   'application/x-zip',
+  'application/x-rar',
+  'application/x-tar',
+  'application/gzip',
 ];
 
 @Injectable()
@@ -102,6 +108,19 @@ export class FilesService {
     }
 
     return record;
+  }
+
+  async uploadMultiple(
+    files: Express.Multer.File[],
+    actor: JwtPayload,
+    options?: { fileType?: FileType; taskId?: string },
+  ) {
+    const results = [];
+    for (const file of files) {
+      const record = await this.upload(file, actor, options);
+      results.push(record);
+    }
+    return { count: results.length, files: results };
   }
 
   async findAll(actor: JwtPayload, filters?: {
@@ -198,9 +217,17 @@ export class FilesService {
       throw new BadRequestException('Bu dosya türüne izin verilmiyor');
     }
 
+    // Allow source code files by extension
+    const CODE_EXTENSIONS = ['.html', '.htm', '.css', '.js', '.ts', '.tsx', '.jsx', '.vue',
+      '.java', '.py', '.rb', '.php', '.go', '.rs', '.swift', '.kt', '.scala',
+      '.c', '.cpp', '.h', '.hpp', '.cs', '.fs', '.sql', '.md', '.xml', '.json',
+      '.yml', '.yaml', '.toml', '.ini', '.cfg', '.env', '.gitignore', '.svg',
+    ];
+    if (CODE_EXTENSIONS.includes(ext)) return;
+
     const mimeAllowed = ALLOWED_MIME_PREFIXES.some((p) => file.mimetype.startsWith(p));
     if (!mimeAllowed) {
-      throw new BadRequestException('Bu MIME türüne izin verilmiyor');
+      throw new BadRequestException('Bu dosya türüne izin verilmiyor');
     }
   }
 

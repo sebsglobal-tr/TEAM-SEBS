@@ -9,9 +9,10 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   Body,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { FileType } from '@prisma/client';
 import { FilesService } from './files.service';
@@ -35,6 +36,17 @@ export class FilesController {
     @Body('description') description?: string,
   ) {
     return this.filesService.upload(file, user, { taskId, fileType, description });
+  }
+
+  @Post('upload-multiple')
+  @UseInterceptors(FilesInterceptor('files'))
+  uploadMultiple(
+    @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser() user: JwtPayload,
+    @Body('taskId') taskId?: string,
+    @Body('fileType') fileType?: FileType,
+  ) {
+    return this.filesService.uploadMultiple(files, user, { taskId, fileType });
   }
 
   @Get()
