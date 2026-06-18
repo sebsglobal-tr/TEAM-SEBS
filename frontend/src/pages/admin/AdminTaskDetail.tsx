@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
+import { usersService } from '../../services/users.service';
 import { formatDate, formatDateTime } from '../../utils/format';
 import type { Task } from '../../types';
 
@@ -30,12 +31,11 @@ export function AdminTaskDetail() {
     if (!id) return;
     const load = async () => {
       try {
-        const [t, allUsers] = await Promise.all([
+        const [t, mgrs] = await Promise.all([
           tasksService.getById(id),
-          tasksService.getAll({ limit: '100' }),
+          usersService.getManagers(),
         ]);
-        const users = Array.isArray(allUsers) ? allUsers : [];
-        setManagers(users.filter((u: any) => u.assignedTo?.role === 'MANAGER' || u.createdBy?.role === 'MANAGER'));
+        setManagers(mgrs);
         setTask(t);
       } catch (err) {
         console.error('Görev yüklenirken hata:', err);

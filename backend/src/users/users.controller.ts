@@ -25,7 +25,7 @@ export class UsersController {
   constructor(private usersService: UsersService) {}
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtPayload) {
     return this.usersService.create(dto, user);
   }
@@ -50,7 +50,7 @@ export class UsersController {
   }
 
   @Get('managers')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
   getManagers(@CurrentUser() user: JwtPayload) {
     return this.usersService.getManagers(user);
   }

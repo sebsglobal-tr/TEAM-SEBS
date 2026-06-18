@@ -3,7 +3,8 @@
     "allow": [
       "Bash(open -a Docker)",
       "Skill(run)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx prisma *)"
     ]
   }
 }

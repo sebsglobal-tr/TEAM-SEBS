@@ -117,7 +117,7 @@ export function AdminDashboard() {
             </div>
             <div className="card-subtitle">Sistemdeki tüm görevlerin akış görünümü</div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/users')}>
+          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/tasks')}>
             Tüm Görevler
           </button>
         </div>
@@ -125,7 +125,7 @@ export function AdminDashboard() {
           <DailyTaskView
             tasks={tasks}
             onStatusChange={handleStatusChange}
-            onViewDetail={(id) => navigate(`/tasks/${id}`)}
+            onViewDetail={(id) => navigate(`/admin/tasks/${id}`)}
           />
         </div>
       </div>

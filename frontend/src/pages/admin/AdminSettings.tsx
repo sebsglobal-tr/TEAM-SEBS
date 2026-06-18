@@ -1,13 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { settingsService } from '../../services/settings.service';
+
+const SETTING_KEYS = {
+  MAX_FILE_SIZE: 'MAX_FILE_SIZE_MB',
+  DEFAULT_IDLE_THRESHOLD: 'DEFAULT_IDLE_THRESHOLD_MINUTES',
+} as const;
 
 export function AdminSettings() {
   const [maxFileSize, setMaxFileSize] = useState('25');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  useEffect(() => {
+    settingsService.getAll()
+      .then((data) => {
+        const sizeSetting = data.find((s) => s.key === SETTING_KEYS.MAX_FILE_SIZE);
+        if (sizeSetting) setMaxFileSize(sizeSetting.value);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await settingsService.update([
+        { key: SETTING_KEYS.MAX_FILE_SIZE, value: maxFileSize },
+      ]);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setError(typeof msg === 'string' ? msg : 'Ayarlar kaydedilirken hata oluştu');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
   return (
     <div>
@@ -15,6 +49,12 @@ export function AdminSettings() {
         <h1 className="page-title">Sistem Ayarları</h1>
         <p className="page-subtitle">Sistem genel yapılandırması</p>
       </div>
+
+      {error && (
+        <div style={{ padding: '0.75rem 1rem', marginBottom: '1rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: 8, fontSize: '0.85rem' }}>
+          {error}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header"><div className="card-title">Dosya Ayarları</div></div>
@@ -27,6 +67,8 @@ export function AdminSettings() {
               style={{ maxWidth: 200 }}
               value={maxFileSize}
               onChange={(e) => setMaxFileSize(e.target.value)}
+              min={1}
+              max={100}
             />
           </div>
         </div>
@@ -56,8 +98,8 @@ export function AdminSettings() {
         </div>
       </div>
 
-      <button className="btn btn-primary" onClick={handleSave}>
-        {saved ? '✓ Kaydedildi' : 'Ayarları Kaydet'}
+      <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+        {saving ? 'Kaydediliyor...' : saved ? '✓ Kaydedildi' : 'Ayarları Kaydet'}
       </button>
     </div>
   );

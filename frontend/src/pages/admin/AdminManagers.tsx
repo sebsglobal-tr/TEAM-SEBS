@@ -7,11 +7,9 @@ export function AdminManagers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Use the getAll endpoint filtered by role
-    usersService.getAll({ status: 'ACTIVE' })
+    usersService.getManagers()
       .then((data) => {
-        const allUsers = Array.isArray(data) ? data : [];
-        setManagers(allUsers.filter((u: any) => u.role === 'MANAGER'));
+        setManagers(Array.isArray(data) ? data : []);
       })
       .catch(console.error)
       .finally(() => setLoading(false));

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/Button';
@@ -18,11 +18,16 @@ export function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
 
-  // Already logged in → redirect
-  if (user) {
-    const target = HOME_BY_ROLE[user.role] ?? '/dashboard';
-    navigate(target, { replace: true });
-  }
+  // Already logged in → redirect in useEffect, not during render
+  useEffect(() => {
+    if (user) {
+      const target = HOME_BY_ROLE[user.role] ?? '/dashboard';
+      navigate(target, { replace: true });
+    }
+  }, [user, navigate]);
+
+  // Don't render login form if already authenticated
+  if (user) return null;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
