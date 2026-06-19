@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Upload, Download, Trash2, X } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
 import { usersService } from '../../services/users.service';
+import { filesService } from '../../services/files.service';
 import { formatDate, formatDateTime } from '../../utils/format';
 import type { Task } from '../../types';
 
@@ -26,6 +27,9 @@ export function AdminTaskDetail() {
   const [loading, setLoading] = useState(true);
   const [managers, setManagers] = useState<any[]>([]);
   const [assignId, setAssignId] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -65,6 +69,41 @@ export function AdminTaskDetail() {
       setTask(updated);
     } catch (err) {
       console.error('Durum güncellenirken hata:', err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    setUploading(true);
+    setUploadError('');
+    try {
+      await filesService.upload(file, {
+        taskId: id,
+        fileType: 'TASK_ATTACHMENT',
+        description: `${task?.title} görev dosyası`,
+      });
+      const updated = await tasksService.getById(id);
+      setTask(updated);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setUploadError(typeof msg === 'string' ? msg : 'Dosya yüklenirken hata oluştu');
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm('Bu dosyayı silmek istediğinize emin misiniz?')) return;
+    try {
+      await filesService.remove(fileId);
+      if (id) {
+        const updated = await tasksService.getById(id);
+        setTask(updated);
+      }
+    } catch (err) {
+      console.error('Dosya silinirken hata:', err);
     }
   };
 
@@ -116,7 +155,6 @@ export function AdminTaskDetail() {
         <div className="card">
           <div className="card-header"><div className="card-title">İşlemler</div></div>
           <div className="card-body">
-            {/* Assign to manager */}
             {isPool && (
               <div style={{ marginBottom: '1rem' }}>
                 <div className="form-label">Yöneticiye Ata</div>
@@ -132,7 +170,6 @@ export function AdminTaskDetail() {
               </div>
             )}
 
-            {/* Status actions */}
             <div className="form-label">Durum Güncelle</div>
             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
               {task.status === 'POOL' && (
@@ -201,6 +238,58 @@ export function AdminTaskDetail() {
           </div>
         </div>
       )}
+
+      {/* ─── Dosyalar ─── */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="card-header">
+          <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <FileText size={16} /> Dosyalar
+            {task.files && task.files.length > 0 && (
+              <span className="badge badge-info">{task.files.length}</span>
+            )}
+          </div>
+          <label className="btn btn-primary btn-sm" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+            <Upload size={14} /> {uploading ? 'Yükleniyor...' : 'Dosya Yükle'}
+            <input ref={fileInputRef} type="file" hidden onChange={handleFileUpload} disabled={uploading} />
+          </label>
+        </div>
+        <div className="card-body">
+          {uploadError && (
+            <div className="alert-banner alert-error" style={{ marginBottom: '0.75rem' }}>
+              <AlertCircle size={16} /> {uploadError}
+            </div>
+          )}
+          {!task.files || task.files.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              Henüz dosya yüklenmemiş.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              {task.files.map((file: any) => (
+                <div key={file.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.5rem 0.75rem', background: 'var(--bg-primary)',
+                  borderRadius: 8, fontSize: '0.82rem',
+                }}>
+                  <FileText size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.fileName}
+                  </span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', flexShrink: 0 }}>
+                    {file.uploadedBy?.firstName} {file.uploadedBy?.lastName}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: '4px' }} onClick={() => filesService.download(file.id, file.fileName)} title="İndir">
+                    <Download size={14} />
+                  </button>
+                  <button className="btn btn-ghost btn-sm" style={{ padding: '4px', color: '#ef4444' }} onClick={() => handleDeleteFile(file.id)} title="Sil">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Comments */}
       {task.comments && task.comments.length > 0 && (

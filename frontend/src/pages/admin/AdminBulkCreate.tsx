@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Save, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, CheckCircle, AlertCircle, Upload, FileText, X } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
 import { usersService, type EmployeeUser } from '../../services/users.service';
+import { filesService } from '../../services/files.service';
 import { useEffect } from 'react';
 
 interface TaskEntry {
@@ -14,6 +15,7 @@ interface TaskEntry {
   dueDate: string;
   estimatedMinutes: string;
   responsibleManagerId: string;
+  files: File[];
 }
 
 const TASK_TYPES = [
@@ -43,6 +45,7 @@ function emptyTask(): TaskEntry {
     dueDate: '',
     estimatedMinutes: '',
     responsibleManagerId: '',
+    files: [],
   };
 }
 
@@ -69,8 +72,24 @@ export function AdminBulkCreate() {
     setTasks((prev) => prev.filter((t) => t.key !== key));
   };
 
-  const updateTask = (key: string, field: keyof TaskEntry, value: string) => {
+  const updateTask = (key: string, field: keyof TaskEntry, value: any) => {
     setTasks((prev) => prev.map((t) => (t.key === key ? { ...t, [field]: value } : t)));
+  };
+
+  const addFileToTask = (key: string, file: File) => {
+    setTasks((prev) => prev.map((t) => {
+      if (t.key !== key) return t;
+      const exists = t.files.some((f) => f.name === file.name && f.size === file.size);
+      if (exists) return t;
+      return { ...t, files: [...t.files, file] };
+    }));
+  };
+
+  const removeFileFromTask = (key: string, index: number) => {
+    setTasks((prev) => prev.map((t) => {
+      if (t.key !== key) return t;
+      return { ...t, files: t.files.filter((_, i) => i !== index) };
+    }));
   };
 
   const validTasks = tasks.filter((t) => t.title.trim().length > 0);
@@ -82,23 +101,55 @@ export function AdminBulkCreate() {
     }
 
     setSubmitting(true);
-    try {
-      const payload = validTasks.map((t) => ({
-        title: t.title.trim(),
-        description: t.description.trim() || undefined,
-        taskType: t.taskType,
-        priority: t.priority,
-        dueDate: t.dueDate || undefined,
-        estimatedMinutes: t.estimatedMinutes ? parseInt(t.estimatedMinutes, 10) : undefined,
-        responsibleManagerId: t.responsibleManagerId || undefined,
-      }));
+    let successCount = 0;
+    let errorMessages: string[] = [];
 
-      const res = await tasksService.createBulk(payload);
+    try {
+      for (const entry of validTasks) {
+        const payload: any = {
+          title: entry.title.trim(),
+          description: entry.description.trim() || undefined,
+          taskType: entry.taskType,
+          priority: entry.priority,
+          dueDate: entry.dueDate || undefined,
+          estimatedMinutes: entry.estimatedMinutes ? parseInt(entry.estimatedMinutes, 10) : undefined,
+          responsibleManagerId: entry.responsibleManagerId || undefined,
+        };
+
+        try {
+          const createdTask: any = await tasksService.create(payload);
+          successCount++;
+
+          // Upload files if any
+          if (entry.files.length > 0 && createdTask?.id) {
+            for (const file of entry.files) {
+              try {
+                await filesService.upload(file, {
+                  taskId: createdTask.id,
+                  fileType: 'TASK_ATTACHMENT',
+                  description: `${entry.title} görev dosyası`,
+                });
+              } catch (fileErr: any) {
+                errorMessages.push(`"${entry.title}" dosyası yüklenemedi: ${fileErr?.response?.data?.message || 'Bilinmeyen hata'}`);
+              }
+            }
+          }
+        } catch (taskErr: any) {
+          errorMessages.push(`"${entry.title}" oluşturulamadı: ${taskErr?.response?.data?.message || 'Bilinmeyen hata'}`);
+        }
+      }
+
       setResult({
-        success: true,
-        count: res.count,
-        message: `${res.count} görev başarıyla oluşturuldu!`,
+        success: successCount > 0,
+        count: successCount,
+        message: errorMessages.length > 0
+          ? `${successCount} görev başarıyla oluşturuldu! ${errorMessages.length} hata: ${errorMessages.join(', ')}`
+          : `${successCount} görev başarıyla oluşturuldu!`,
       });
+
+      if (successCount > 0) {
+        setTasks([emptyTask()]);
+      }
     } catch (err: any) {
       setResult({
         success: false,
@@ -115,7 +166,7 @@ export function AdminBulkCreate() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 className="page-title">Toplu Görev Ekle</h1>
-          <p className="page-subtitle">Aynı anda birden fazla görev oluşturun. Görevler havuza eklenir veya yöneticilere atanır.</p>
+          <p className="page-subtitle">Aynı anda birden fazla görev oluşturun. Her göreve dosya ekleyebilirsiniz.</p>
         </div>
         <button className="btn btn-ghost" onClick={() => navigate('/admin/tasks')}>
           <ArrowLeft size={16} /> Görevlere Dön
@@ -123,19 +174,7 @@ export function AdminBulkCreate() {
       </div>
 
       {result && (
-        <div style={{
-          padding: '1rem',
-          borderRadius: 10,
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.9rem',
-          fontWeight: 500,
-          background: result.success ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-          color: result.success ? '#10b981' : '#ef4444',
-          border: `1px solid ${result.success ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
-        }}>
+        <div className={`alert-banner ${result.success ? 'alert-success' : 'alert-error'}`}>
           {result.success ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
           {result.message}
         </div>
@@ -144,7 +183,7 @@ export function AdminBulkCreate() {
       {/* Task List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {tasks.map((task, index) => (
-          <div key={task.key} className="card">
+          <div key={task.key} className="card card-animate">
             <div className="card-header">
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{
@@ -154,6 +193,11 @@ export function AdminBulkCreate() {
                   fontSize: '0.75rem', fontWeight: 700,
                 }}>{index + 1}</span>
                 Görev {index + 1}
+                {task.files.length > 0 && (
+                  <span className="badge badge-info" style={{ fontSize: '0.65rem' }}>
+                    {task.files.length} dosya
+                  </span>
+                )}
               </div>
               {tasks.length > 1 && (
                 <button className="btn btn-ghost btn-sm" onClick={() => removeTask(task.key)}>
@@ -246,9 +290,44 @@ export function AdminBulkCreate() {
                     <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
                   ))}
                 </select>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  Boş bırakılırsa görev genel havuza eklenir. Yönetici seçilirse doğrudan atanır.
+              </div>
+
+              {/* ─── File Upload ─── */}
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <label className="form-label">Dosya Ekle</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
+                    <Upload size={14} /> Dosya Seç
+                    <input
+                      type="file"
+                      hidden
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          Array.from(e.target.files).forEach((f) => addFileToTask(task.key, f));
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
                 </div>
+                {task.files.length > 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {task.files.map((file, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        padding: '0.3rem 0.6rem', background: 'var(--bg-primary)',
+                        borderRadius: 6, fontSize: '0.78rem',
+                      }}>
+                        <FileText size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                        <button className="btn btn-ghost btn-sm" style={{ padding: '2px 4px' }} onClick={() => removeFileFromTask(task.key, i)}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
