@@ -218,6 +218,12 @@ export class TasksService {
           include: { uploadedBy: { select: { id: true, firstName: true, lastName: true } } },
           orderBy: { createdAt: 'desc' },
         },
+        fileAttachments: {
+          include: {
+            uploadedBy: { select: { id: true, firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         taskHistory: {
           include: { user: { select: { id: true, firstName: true, lastName: true } } },
           orderBy: { createdAt: 'desc' },

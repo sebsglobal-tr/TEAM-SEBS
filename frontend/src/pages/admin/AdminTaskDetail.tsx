@@ -93,10 +93,18 @@ export function AdminTaskDetail() {
     setUploading(true);
     setUploadError('');
     try {
-      await filesService.upload(file, {
+      // Upload to storage
+      const uploaded = await filesService.upload(file, {
         taskId: id,
         fileType: 'TASK_ATTACHMENT',
         description: `${task?.title} görev dosyası`,
+      });
+      // Register with task so it appears in task.files (TaskFile)
+      await tasksService.addFile(id, {
+        fileName: uploaded.originalName,
+        fileUrl: `/api/files/${uploaded.id}/download`,
+        fileType: uploaded.mimeType,
+        fileSize: uploaded.size,
       });
       const updated = await tasksService.getById(id);
       setTask(updated);

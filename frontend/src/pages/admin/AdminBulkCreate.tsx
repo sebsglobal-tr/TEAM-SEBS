@@ -124,10 +124,17 @@ export function AdminBulkCreate() {
           if (entry.files.length > 0 && createdTask?.id) {
             for (const file of entry.files) {
               try {
-                await filesService.upload(file, {
+                const uploaded = await filesService.upload(file, {
                   taskId: createdTask.id,
                   fileType: 'TASK_ATTACHMENT',
                   description: `${entry.title} görev dosyası`,
+                });
+                // Register with task so it appears in task.files (TaskFile)
+                await tasksService.addFile(createdTask.id, {
+                  fileName: uploaded.originalName,
+                  fileUrl: `/api/files/${uploaded.id}/download`,
+                  fileType: uploaded.mimeType,
+                  fileSize: uploaded.size,
                 });
               } catch (fileErr: any) {
                 errorMessages.push(`"${entry.title}" dosyası yüklenemedi: ${fileErr?.response?.data?.message || 'Bilinmeyen hata'}`);
