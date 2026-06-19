@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FolderOpen, Download, FileText, Upload } from 'lucide-react';
+import { FolderOpen, Download, FileText, Upload, AlertCircle } from 'lucide-react';
 import { filesService, type FileRecord } from '../../services/files.service';
 import { formatDateTime } from '../../utils/format';
 
@@ -12,6 +12,8 @@ function formatFileSize(bytes: number): string {
 export function EmployeeFiles() {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     filesService.getAll()
@@ -23,13 +25,17 @@ export function EmployeeFiles() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploading(true);
+    setUploadError('');
     try {
-      await filesService.upload(file, { fileType: 'REPORT', description: file.name });
+      await filesService.upload(file, { description: file.name });
       const updated = await filesService.getAll();
       setFiles(updated);
-    } catch (err) {
-      console.error('Dosya yüklenirken hata:', err);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setUploadError(typeof msg === 'string' ? msg : 'Dosya yüklenirken hata oluştu. Dosya boyutu çok büyük olabilir.');
     } finally {
+      setUploading(false);
       if (e.target) e.target.value = '';
     }
   };
@@ -43,11 +49,17 @@ export function EmployeeFiles() {
           <h1 className="page-title">Dosyalarım</h1>
           <p className="page-subtitle">Yüklediğiniz dosyalar</p>
         </div>
-        <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-          <Upload size={16} /> Dosya Yükle
-          <input type="file" hidden onChange={handleUpload} accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.rar,.txt,.html,.htm,.css,.js,.ts,.tsx,.jsx,.vue,.java,.py,.php,.go,.rs,.swift,.kt,.c,.cpp,.cs,.sql,.md,.xml,.json,.yml,.yaml,.svg,.env,.gitignore" />
+        <label className={`btn btn-primary ${uploading ? 'btn-disabled' : ''}`} style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+          <Upload size={16} /> {uploading ? 'Yükleniyor...' : 'Dosya Yükle'}
+          <input type="file" hidden onChange={handleUpload} disabled={uploading} />
         </label>
       </div>
+
+      {uploadError && (
+        <div className="alert-banner alert-error" style={{ marginBottom: '1rem' }}>
+          <AlertCircle size={16} /> {uploadError}
+        </div>
+      )}
 
       {files.length === 0 ? (
         <div className="empty-state">
