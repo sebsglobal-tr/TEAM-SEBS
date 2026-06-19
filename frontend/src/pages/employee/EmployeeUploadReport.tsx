@@ -11,7 +11,7 @@ const REPORT_TYPES = [
   { value: 'OTHER', label: 'Diğer' },
 ];
 
-const ALLOWED_EXTENSIONS = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip';
+const ALLOWED_EXTENSIONS = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.rar,.html,.htm,.css,.js,.ts,.tsx,.jsx,.vue,.java,.py,.php,.go,.rs,.swift,.kt,.c,.cpp,.cs,.sql,.md,.xml,.json,.yml,.yaml,.svg,.txt,.csv,.env';
 
 export function EmployeeUploadReport() {
   const navigate = useNavigate();

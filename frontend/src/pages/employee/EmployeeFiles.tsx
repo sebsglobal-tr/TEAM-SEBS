@@ -45,7 +45,7 @@ export function EmployeeFiles() {
         </div>
         <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
           <Upload size={16} /> Dosya Yükle
-          <input type="file" hidden onChange={handleUpload} accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.txt" />
+          <input type="file" hidden onChange={handleUpload} accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.rar,.txt,.html,.htm,.css,.js,.ts,.tsx,.jsx,.vue,.java,.py,.php,.go,.rs,.swift,.kt,.c,.cpp,.cs,.sql,.md,.xml,.json,.yml,.yaml,.svg,.env,.gitignore" />
         </label>
       </div>
 
