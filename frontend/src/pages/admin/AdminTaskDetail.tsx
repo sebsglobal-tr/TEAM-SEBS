@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Upload, Download, Trash2, X } from 'lucide-react';
+import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Upload, Download, Trash2, Users } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
 import { usersService } from '../../services/users.service';
 import { filesService } from '../../services/files.service';
@@ -26,7 +26,9 @@ export function AdminTaskDetail() {
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [managers, setManagers] = useState<any[]>([]);
-  const [assignId, setAssignId] = useState('');
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [assignManagerId, setAssignManagerId] = useState('');
+  const [assignEmployeeId, setAssignEmployeeId] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,11 +37,13 @@ export function AdminTaskDetail() {
     if (!id) return;
     const load = async () => {
       try {
-        const [t, mgrs] = await Promise.all([
+        const [t, mgrs, emps] = await Promise.all([
           tasksService.getById(id),
           usersService.getManagers(),
+          usersService.getEmployees(),
         ]);
         setManagers(mgrs);
+        setEmployees(emps);
         setTask(t);
       } catch (err) {
         console.error('Görev yüklenirken hata:', err);
@@ -51,14 +55,25 @@ export function AdminTaskDetail() {
     load();
   }, [id]);
 
-  const handleAssign = async () => {
-    if (!assignId || !id) return;
+  const handleAssignToManager = async () => {
+    if (!assignManagerId || !id) return;
     try {
-      const updated = await tasksService.assignToManager(id, assignId);
+      const updated = await tasksService.assignToManager(id, assignManagerId);
       setTask(updated);
-      setAssignId('');
+      setAssignManagerId('');
     } catch (err) {
       console.error('Atama yapılırken hata:', err);
+    }
+  };
+
+  const handleAssignToEmployee = async () => {
+    if (!assignEmployeeId || !id) return;
+    try {
+      const updated = await tasksService.assignToEmployee(id, assignEmployeeId);
+      setTask(updated);
+      setAssignEmployeeId('');
+    } catch (err) {
+      console.error('Çalışana atama yapılırken hata:', err);
     }
   };
 
@@ -111,6 +126,8 @@ export function AdminTaskDetail() {
   if (!task) return <div className="empty-state">Görev bulunamadı.</div>;
 
   const isPool = task.status === 'POOL';
+  const isAssignedToManager = task.status === 'ASSIGNED_TO_MANAGER';
+  const isWithManager = !!task.responsibleManagerId || isAssignedToManager;
   const subTasks = task.subTasks ?? [];
 
   return (
@@ -155,24 +172,42 @@ export function AdminTaskDetail() {
         <div className="card">
           <div className="card-header"><div className="card-title">İşlemler</div></div>
           <div className="card-body">
+            {/* Assign to Manager */}
             {isPool && (
               <div style={{ marginBottom: '1rem' }}>
                 <div className="form-label">Yöneticiye Ata</div>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <select className="form-select" value={assignId} onChange={(e) => setAssignId(e.target.value)}>
+                  <select className="form-select" value={assignManagerId} onChange={(e) => setAssignManagerId(e.target.value)}>
                     <option value="">Yönetici seçin...</option>
                     {managers.map((m: any) => (
                       <option key={m.id} value={m.id}>{m.firstName} {m.lastName}</option>
                     ))}
                   </select>
-                  <button className="btn btn-primary btn-sm" onClick={handleAssign} disabled={!assignId}>Ata</button>
+                  <button className="btn btn-primary btn-sm" onClick={handleAssignToManager} disabled={!assignManagerId}>Ata</button>
                 </div>
               </div>
             )}
 
+            {/* Assign to Employee — show when pool or already with manager */}
+            {(isPool || isWithManager) && !['ASSIGNED_TO_EMPLOYEE', 'IN_PROGRESS', 'SUBMITTED', 'MANAGER_APPROVED', 'ADMIN_APPROVED', 'CANCELLED'].includes(task.status) && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div className="form-label">Çalışana Ata</div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <select className="form-select" value={assignEmployeeId} onChange={(e) => setAssignEmployeeId(e.target.value)}>
+                    <option value="">Çalışan seçin...</option>
+                    {employees.map((e: any) => (
+                      <option key={e.id} value={e.id}>{e.firstName} {e.lastName} {e.department ? `(${e.department.name})` : ''}</option>
+                    ))}
+                  </select>
+                  <button className="btn btn-primary btn-sm" onClick={handleAssignToEmployee} disabled={!assignEmployeeId}>Ata</button>
+                </div>
+              </div>
+            )}
+
+            {/* Status actions */}
             <div className="form-label">Durum Güncelle</div>
             <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-              {task.status === 'POOL' && (
+              {isPool && (
                 <button className="btn btn-sm btn-secondary" onClick={() => handleStatusUpdate('ASSIGNED_TO_MANAGER')}>
                   <UserCheck size={14} /> Yöneticiye Ata
                 </button>
