@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Bell,
+  Briefcase,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -18,18 +19,34 @@ import { notificationsService } from '../services/notifications.service';
 import './layout.css';
 
 const managerNav = [
-  { to: '/manager/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/manager/employees', icon: Users, label: 'Çalışanlarım' },
-  { to: '/manager/reports', icon: BarChart3, label: 'Raporlar' },
-  { to: '/manager/files', icon: FolderOpen, label: 'Dosyalar' },
-  { to: '/manager/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
-  { to: '/manager/timer', icon: Timer, label: 'Sayaç' },
-  { to: '/manager/profile', icon: UserCircle, label: 'Profil' },
+  {
+    section: 'Ana Sayfa',
+    items: [
+      { to: '/manager/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    ],
+  },
+  {
+    section: 'Yönetim',
+    items: [
+      { to: '/manager/employees', icon: Users, label: 'Çalışanlarım' },
+      { to: '/manager/reports', icon: BarChart3, label: 'Raporlar' },
+      { to: '/manager/files', icon: FolderOpen, label: 'Dosyalar' },
+      { to: '/manager/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
+    ],
+  },
+  {
+    section: 'Kişisel',
+    items: [
+      { to: '/manager/timer', icon: Timer, label: 'Sayaç' },
+      { to: '/manager/profile', icon: UserCircle, label: 'Profil' },
+    ],
+  },
 ];
 
 export function ManagerLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -43,16 +60,33 @@ export function ManagerLayout() {
     return () => clearInterval(interval);
   }, [user]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const getPageTitle = () => {
+    for (const section of managerNav) {
+      for (const item of section.items) {
+        if (location.pathname === item.to || location.pathname.startsWith(item.to + '/')) {
+          return item.label;
+        }
+      }
+    }
+    return 'Yönetici Paneli';
   };
 
   return (
     <div className="layout manager-theme">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="brand-logo">MG</div>
+          <div className="brand-logo">
+            <Briefcase size={20} />
+          </div>
           <div>
             <span className="brand-name">Sebs Global</span>
             <span className="brand-tag">Yönetici Paneli</span>
@@ -63,16 +97,21 @@ export function ManagerLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          {managerNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
+          {managerNav.map((section) => (
+            <div key={section.section}>
+              <div className="nav-section">{section.section}</div>
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -93,10 +132,12 @@ export function ManagerLayout() {
 
       <div className="main-area">
         <header className="topbar">
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-            <Menu size={20} />
-          </button>
-          <div className="topbar-title">Yönetici Paneli</div>
+          <div className="topbar-left">
+            <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <div className="topbar-title">{getPageTitle()}</div>
+          </div>
           <div className="topbar-actions">
             <button className="icon-btn notification-btn" onClick={() => navigate('/notifications')} title="Bildirimler">
               <Bell size={18} />

@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -14,6 +14,8 @@ import {
   Menu,
   X,
   Bell,
+  Shield,
+  Sunset,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -21,21 +23,42 @@ import { notificationsService } from '../services/notifications.service';
 import './layout.css';
 
 const adminNav = [
-  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/admin/users', icon: Users, label: 'Tüm Kullanıcılar' },
-  { to: '/admin/managers', icon: UserCog, label: 'Yöneticiler' },
-  { to: '/admin/employees', icon: UserCheck, label: 'Çalışanlar' },
-  { to: '/admin/assignments', icon: UserPlus, label: 'Atamalar' },
-  { to: '/admin/tasks', icon: CheckSquare, label: 'Görevler' },
-  { to: '/admin/reports', icon: BarChart3, label: 'Raporlar' },
-  { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
-  { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
-  { to: '/admin/settings', icon: Settings, label: 'Ayarlar' },
+  {
+    section: 'Ana Sayfa',
+    items: [
+      { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    ],
+  },
+  {
+    section: 'Kullanıcılar',
+    items: [
+      { to: '/admin/users', icon: Users, label: 'Tüm Kullanıcılar' },
+      { to: '/admin/managers', icon: UserCog, label: 'Yöneticiler' },
+      { to: '/admin/employees', icon: UserCheck, label: 'Çalışanlar' },
+      { to: '/admin/assignments', icon: UserPlus, label: 'Atamalar' },
+    ],
+  },
+  {
+    section: 'Yönetim',
+    items: [
+      { to: '/admin/tasks', icon: CheckSquare, label: 'Görevler' },
+      { to: '/admin/reports', icon: BarChart3, label: 'Raporlar' },
+      { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
+      { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
+    ],
+  },
+  {
+    section: 'Sistem',
+    items: [
+      { to: '/admin/settings', icon: Settings, label: 'Ayarlar' },
+    ],
+  },
 ];
 
 export function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -49,16 +72,33 @@ export function AdminLayout() {
     return () => clearInterval(interval);
   }, [user]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const getPageTitle = () => {
+    for (const section of adminNav) {
+      for (const item of section.items) {
+        if (location.pathname === item.to || location.pathname.startsWith(item.to + '/')) {
+          return item.label;
+        }
+      }
+    }
+    return 'Admin Paneli';
   };
 
   return (
     <div className="layout admin-theme">
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <div className="brand-logo">AG</div>
+          <div className="brand-logo">
+            <Shield size={20} />
+          </div>
           <div>
             <span className="brand-name">Sebs Global</span>
             <span className="brand-tag">Admin Paneli</span>
@@ -69,16 +109,21 @@ export function AdminLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          {adminNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <item.icon size={18} />
-              <span>{item.label}</span>
-            </NavLink>
+          {adminNav.map((section) => (
+            <div key={section.section}>
+              <div className="nav-section">{section.section}</div>
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <item.icon size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -99,10 +144,12 @@ export function AdminLayout() {
 
       <div className="main-area">
         <header className="topbar">
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-            <Menu size={20} />
-          </button>
-          <div className="topbar-title">Admin Paneli</div>
+          <div className="topbar-left">
+            <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <div className="topbar-title">{getPageTitle()}</div>
+          </div>
           <div className="topbar-actions">
             <button className="icon-btn notification-btn" onClick={() => navigate('/notifications')} title="Bildirimler">
               <Bell size={18} />
