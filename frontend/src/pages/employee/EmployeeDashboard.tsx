@@ -75,22 +75,32 @@ export function EmployeeDashboard() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const activeSession = session?.activeSession;
+  const breakSeconds = session?.totals?.break ?? 0;
 
-  // Real-time counter
+  // Real-time counter — accounts for breaks
   useEffect(() => {
-    if (!activeSession || isOnBreak) {
+    if (!activeSession) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
     const startedAt = new Date(activeSession.startedAt).getTime();
+    // Use the backend's totalActiveSeconds as base (accounts for breaks/idle already)
+    const baseActiveSeconds = activeSession.totalActiveSeconds ?? 0;
+
     const calcElapsed = () => {
-      const total = Math.floor((Date.now() - startedAt) / 1000);
+      if (isOnBreak) return; // don't tick while on break — just show stored total
+      const sessionWallSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      // Subtract break seconds from wall clock to get approximate active time
+      const estimatedActive = Math.max(0, sessionWallSeconds - breakSeconds);
+      // Use whichever is higher: backend stored or estimated
+      const total = Math.max(baseActiveSeconds, estimatedActive);
       setElapsedSeconds(total);
     };
+
     calcElapsed();
     intervalRef.current = setInterval(calcElapsed, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [activeSession, isOnBreak]);
+  }, [activeSession, isOnBreak, breakSeconds]);
 
   useWorkSessionHeartbeat({
     isSessionActive: !!activeSession,

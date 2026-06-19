@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download, ListTodo } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download, ListTodo, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { workSessionsService, type DashboardWorkStats } from '../../services/work-sessions.service';
 import { filesService, type FileRecord } from '../../services/files.service';
@@ -14,6 +14,17 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const STATUS_CONFIG: Record<string, { label: string; icon: string; className: string }> = {
+  ONLINE_ACTIVE: { label: '🟢 Aktif', icon: '🟢', className: 'badge-success' },
+  ONLINE_IDLE: { label: '🟡 Boşta', icon: '🟡', className: 'badge-warning' },
+  ON_BREAK: { label: '☕ Molada', icon: '☕', className: 'badge-info' },
+  SCREEN_LOCKED: { label: '🔒 Kilitli', icon: '🔒', className: 'badge-default' },
+  OFFLINE: { label: '⚫ Çevrimdışı', icon: '⚫', className: 'badge-default' },
+  WORK_SESSION_ENDED: { label: '⏹️ Oturum Bitti', icon: '⏹️', className: 'badge-default' },
+};
+
+const REFRESH_INTERVAL = 15000; // 15 seconds
+
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardWorkStats | null>(null);
@@ -21,25 +32,30 @@ export function AdminDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [statsData, filesData, tasksData] = await Promise.all([
-          workSessionsService.getDashboardStats(),
-          filesService.getAll({ limit: 8 }),
-          tasksService.getAll({ limit: "20" }),
-        ]);
-        setStats(statsData);
-        setRecentFiles(filesData);
-        setTasks(tasksData);
-      } catch (err) {
-        console.error('Dashboard yüklenirken hata:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+  const load = useCallback(async () => {
+    try {
+      const [statsData, filesData, tasksData] = await Promise.all([
+        workSessionsService.getDashboardStats(),
+        filesService.getAll({ limit: 8 }),
+        tasksService.getAll({ limit: "20" }),
+      ]);
+      setStats(statsData);
+      setRecentFiles(filesData);
+      setTasks(tasksData);
+    } catch (err) {
+      console.error('Dashboard yüklenirken hata:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh for real-time employee status
+  useEffect(() => {
+    const interval = setInterval(load, REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [load]);
 
   const handleStatusChange = async (taskId: string, status: string) => {
     try {
@@ -55,56 +71,156 @@ export function AdminDashboard() {
 
   const summary = stats?.summary;
 
+  const now = new Date();
+  const lastRefresh = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Admin Dashboard</h1>
-        <p className="page-subtitle">Sistem genel özet, görev takvimi ve kullanıcı yönetimi</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">Admin Dashboard</h1>
+          <p className="page-subtitle">Sistem genel özet · Canlı çalışan durumları</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={load} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <RefreshCw size={14} /> Yenile
+        </button>
       </div>
 
-      {/* Özet Kartları */}
-      <div className="stats-grid">
-        <div className="stat-card">
+      {/* Canlı Durum Özet Kartları */}
+      <div className="stats-grid" style={{ marginBottom: '1rem' }}>
+        <div className="stat-card" style={{ borderLeft: '3px solid #7c3aed' }}>
           <div className="stat-card-icon admin"><Users size={20} /></div>
           <div>
             <div className="stat-card-label">Toplam Çalışan</div>
             <div className="stat-card-value">{summary?.totalEmployees ?? 0}</div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon admin" style={{ color: '#10b981', background: 'rgba(16,185,129,0.15)' }}><Activity size={20} /></div>
+        <div className="stat-card" style={{ borderLeft: '3px solid #10b981' }}>
+          <div className="stat-card-icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}><Activity size={20} /></div>
           <div>
-            <div className="stat-card-label">Şu An Çalışan</div>
-            <div className="stat-card-value">{summary?.workingNow ?? 0}</div>
+            <div className="stat-card-label">🟢 Şu An Çalışıyor</div>
+            <div className="stat-card-value" style={{ color: '#10b981' }}>{summary?.onlineActive ?? 0}</div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon admin" style={{ color: '#10b981', background: 'rgba(16,185,129,0.15)' }}><UserCheck size={20} /></div>
+        <div className="stat-card" style={{ borderLeft: '3px solid #f59e0b' }}>
+          <div className="stat-card-icon" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}><Clock size={20} /></div>
           <div>
-            <div className="stat-card-label">Aktif</div>
-            <div className="stat-card-value">{summary?.onlineActive ?? 0}</div>
+            <div className="stat-card-label">🟡 Boşta</div>
+            <div className="stat-card-value" style={{ color: '#f59e0b' }}>{summary?.onlineIdle ?? 0}</div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon admin" style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.15)' }}><Clock size={20} /></div>
+        <div className="stat-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
+          <div className="stat-card-icon" style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }}><Coffee size={20} /></div>
           <div>
-            <div className="stat-card-label">Boşta</div>
-            <div className="stat-card-value">{summary?.onlineIdle ?? 0}</div>
+            <div className="stat-card-label">☕ Molada</div>
+            <div className="stat-card-value" style={{ color: '#8b5cf6' }}>{summary?.onBreak ?? 0}</div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon admin" style={{ color: '#8b5cf6', background: 'rgba(139,92,246,0.15)' }}><Coffee size={20} /></div>
+        <div className="stat-card" style={{ borderLeft: '3px solid #64748b' }}>
+          <div className="stat-card-icon" style={{ background: 'rgba(100,116,139,0.15)', color: '#64748b' }}><UserCheck size={20} /></div>
           <div>
-            <div className="stat-card-label">Molada</div>
-            <div className="stat-card-value">{summary?.onBreak ?? 0}</div>
+            <div className="stat-card-label">🔘 Kapalı</div>
+            <div className="stat-card-value">{summary?.offline ?? 0}</div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-card-icon admin" style={{ color: '#3b82f6', background: 'rgba(59,130,246,0.15)' }}><BarChart3 size={20} /></div>
+        <div className="stat-card" style={{ borderLeft: '3px solid #3b82f6' }}>
+          <div className="stat-card-icon" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}><BarChart3 size={20} /></div>
           <div>
             <div className="stat-card-label">Bugün Ekip Toplam</div>
             <div className="stat-card-value">{formatDuration(summary?.totalActiveSecondsToday ?? 0)}</div>
           </div>
+        </div>
+      </div>
+
+      {/* Çalışan Durum Tablosu - CANLI */}
+      <div className="card" style={{ marginBottom: '1.5rem', border: stats?.employees?.some(e => e.currentStatus === 'ONLINE_ACTIVE') ? '1px solid rgba(16,185,129,0.3)' : undefined }}>
+        <div className="card-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', animation: 'pulse 2s infinite' }} />
+            <div>
+              <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Activity size={16} /> Canlı Çalışan Durumları
+              </div>
+              <div className="card-subtitle">Son güncelleme: {lastRefresh} · Her 15 saniyede otomatik yenilenir</div>
+            </div>
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+              Çalışıyor: {summary?.onlineActive ?? 0}
+            </span>
+            <span style={{ margin: '0 0.35rem' }}>·</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />
+              Boşta: {summary?.onlineIdle ?? 0}
+            </span>
+            <span style={{ margin: '0 0.35rem' }}>·</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8b5cf6' }} />
+              Molada: {summary?.onBreak ?? 0}
+            </span>
+          </div>
+        </div>
+        <div className="table-responsive">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Çalışan</th>
+                <th>Departman</th>
+                <th>Anlık Durum</th>
+                <th>Oturum</th>
+                <th>Bugün Aktif</th>
+                <th>Mola</th>
+                <th>Bekleyen Görev</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(!stats?.employees || stats.employees.length === 0) ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Henüz çalışan bulunmuyor.</td></tr>
+              ) : (
+                stats.employees.map((emp) => {
+                  const statusConf = STATUS_CONFIG[emp.currentStatus] ?? { label: emp.currentStatus, icon: '⚫', className: 'badge-default' };
+                  return (
+                    <tr key={emp.id}>
+                      <td style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                          background: emp.currentStatus === 'ONLINE_ACTIVE' ? '#10b981' :
+                                      emp.currentStatus === 'ONLINE_IDLE' ? '#f59e0b' :
+                                      emp.currentStatus === 'ON_BREAK' ? '#8b5cf6' :
+                                      emp.currentStatus === 'SCREEN_LOCKED' ? '#3b82f6' : '#d1d5db',
+                          animation: emp.currentStatus === 'ONLINE_ACTIVE' ? 'pulse 2s infinite' : 'none',
+                        }} />
+                        {emp.firstName} {emp.lastName}
+                      </td>
+                      <td>{emp.department?.name ?? '-'}</td>
+                      <td>
+                        <span className={`badge ${statusConf.className}`} style={{ fontWeight: 600 }}>
+                          {statusConf.label}
+                        </span>
+                      </td>
+                      <td>
+                        {emp.hasActiveSession ? (
+                          <span className="badge badge-success" style={{ fontSize: '0.65rem' }}>Aktif</span>
+                        ) : (
+                          <span className="badge badge-default" style={{ fontSize: '0.65rem' }}>Kapalı</span>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 600, color: emp.todayActiveSeconds > 0 ? '#10b981' : undefined }}>
+                        {formatDuration(emp.todayActiveSeconds)}
+                      </td>
+                      <td>{formatDuration(emp.todayBreakSeconds)}</td>
+                      <td>
+                        <span className={`badge ${emp.pendingTasks > 0 ? 'badge-warning' : 'badge-default'}`}>
+                          {emp.pendingTasks}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -129,52 +245,6 @@ export function AdminDashboard() {
           />
         </div>
       </div>
-
-      {/* Çalışan Durum Tablosu */}
-      {stats?.employees && stats.employees.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <div className="card-title">Çalışan Durumları</div>
-              <div className="card-subtitle">Tüm çalışanların anlık durumu</div>
-            </div>
-          </div>
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Çalışan</th>
-                  <th>Departman</th>
-                  <th>Durum</th>
-                  <th>Bugün Aktif</th>
-                  <th>Mola</th>
-                  <th>Bekleyen Görev</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.employees.map((emp) => (
-                  <tr key={emp.id}>
-                    <td style={{ fontWeight: 500 }}>{emp.firstName} {emp.lastName}</td>
-                    <td>{emp.department?.name ?? '-'}</td>
-                    <td>
-                      <span className={`badge ${
-                        emp.currentStatus === 'ONLINE_ACTIVE' ? 'badge-success' :
-                        emp.currentStatus === 'ONLINE_IDLE' ? 'badge-warning' :
-                        emp.currentStatus === 'ON_BREAK' ? 'badge-info' : 'badge-default'
-                      }`}>
-                        {STATUS_LABELS[emp.currentStatus] ?? 'Çevrimdışı'}
-                      </span>
-                    </td>
-                    <td>{formatDuration(emp.todayActiveSeconds)}</td>
-                    <td>{formatDuration(emp.todayBreakSeconds)}</td>
-                    <td>{emp.pendingTasks}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* Son Dosyalar */}
       {recentFiles.length > 0 && (
@@ -218,12 +288,3 @@ export function AdminDashboard() {
     </div>
   );
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  ONLINE_ACTIVE: 'Aktif',
-  ONLINE_IDLE: 'Boşta',
-  ON_BREAK: 'Molada',
-  OFFLINE: 'Çevrimdışı',
-  SCREEN_LOCKED: 'Kilitli',
-  WORK_SESSION_ENDED: 'Oturum Bitti',
-};
