@@ -152,6 +152,9 @@ function AppRoutes() {
         <Route path="profile" element={<EmployeeProfile />} />
       </Route>
 
+      {/* ─── Shared Routes ──────────────────────────────────────── */}
+      <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -198,3 +201,6 @@ import { EmployeeFiles } from './pages/employee/EmployeeFiles';
 import { EmployeeFeedbacks } from './pages/employee/EmployeeFeedbacks';
 import { EmployeeHistory } from './pages/employee/EmployeeHistory';
 import { EmployeeProfile } from './pages/employee/EmployeeProfile';
+
+// Shared Pages
+import { MessagesPage } from './pages/MessagesPage';

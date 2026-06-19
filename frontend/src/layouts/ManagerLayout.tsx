@@ -7,6 +7,7 @@ import {
   Clock,
   Timer,
   UserCircle,
+  MessageSquare,
   LogOut,
   Menu,
   X,
@@ -38,6 +39,7 @@ const managerNav = [
     section: 'Kişisel',
     items: [
       { to: '/manager/timer', icon: Timer, label: 'Sayaç' },
+      { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
       { to: '/manager/profile', icon: UserCircle, label: 'Profil' },
     ],
   },

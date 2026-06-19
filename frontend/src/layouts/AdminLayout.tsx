@@ -10,12 +10,12 @@ import {
   FolderOpen,
   Clock,
   Settings,
+  MessageSquare,
   LogOut,
   Menu,
   X,
   Bell,
   Shield,
-  Sunset,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -45,6 +45,12 @@ const adminNav = [
       { to: '/admin/reports', icon: BarChart3, label: 'Raporlar' },
       { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
       { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
+    ],
+  },
+  {
+    section: 'İletişim',
+    items: [
+      { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
     ],
   },
   {

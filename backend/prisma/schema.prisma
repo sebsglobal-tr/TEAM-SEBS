@@ -203,6 +203,9 @@ model User {
   reports    Report[]
   feedbacks  Feedback[]
 
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -611,4 +614,26 @@ model Setting {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  message    String
+  isRead     Boolean  @default(false)
+  replyToId  String?
+
+  sender   User?     @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User?     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  replyTo  Message?  @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies  Message[] @relation("MessageReplies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([receiverId, isRead])
+  @@map("messages")
 }

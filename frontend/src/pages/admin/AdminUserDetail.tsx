@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, MessageSquare } from 'lucide-react';
 import { usersService } from '../../services/users.service';
 import { formatDateTime } from '../../utils/format';
 import type { User } from '../../types';
@@ -28,9 +28,14 @@ export function AdminUserDetail() {
         <ArrowLeft size={16} /> Geri
       </button>
 
-      <div className="page-header">
-        <h1 className="page-title">{user.firstName} {user.lastName}</h1>
-        <p className="page-subtitle">{user.email} · {user.position ?? '-'}</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div>
+          <h1 className="page-title">{user.firstName} {user.lastName}</h1>
+          <p className="page-subtitle">{user.email} · {user.position ?? '-'}</p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate(`/messages?user=${id}`)}>
+          <MessageSquare size={14} /> Mesaj Gönder
+        </button>
       </div>
 
       <div className="card">

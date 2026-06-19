@@ -46,6 +46,7 @@ const employeeNav = [
   {
     section: 'Hesabım',
     items: [
+      { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
       { to: '/employee/profile', icon: UserCircle, label: 'Profil' },
     ],
   },

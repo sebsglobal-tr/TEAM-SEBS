@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, BarChart3, FileText, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Clock, BarChart3, FileText, FolderOpen, MessageSquare } from 'lucide-react';
 import { usersService } from '../../services/users.service';
 import { workSessionsService } from '../../services/work-sessions.service';
 import { formatDuration, formatDateTime } from '../../utils/format';
@@ -45,9 +45,14 @@ export function ManagerEmployeeDetail() {
         <ArrowLeft size={16} /> Geri
       </button>
 
-      <div className="page-header">
-        <h1 className="page-title">{employee.firstName} {employee.lastName}</h1>
-        <p className="page-subtitle">{employee.email} · {employee.position ?? '-'}</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div>
+          <h1 className="page-title">{employee.firstName} {employee.lastName}</h1>
+          <p className="page-subtitle">{employee.email} · {employee.position ?? '-'}</p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate(`/messages?user=${id}`)}>
+          <MessageSquare size={14} /> Mesaj Gönder
+        </button>
       </div>
 
       {/* Özet */}

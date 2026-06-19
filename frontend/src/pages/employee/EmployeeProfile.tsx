@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { MessageSquare, User, Mail, Briefcase, Shield } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { api } from '../../services/api';
 
 export function EmployeeProfile() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
@@ -14,9 +17,14 @@ export function EmployeeProfile() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Profil</h1>
-        <p className="page-subtitle">Hesap bilgileriniz ve istatistikleriniz</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 className="page-title">Profil</h1>
+          <p className="page-subtitle">Hesap bilgileriniz ve istatistikleriniz</p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate('/messages')}>
+          <MessageSquare size={14} /> Mesajlar
+        </button>
       </div>
 
       <div className="card">
@@ -68,6 +76,16 @@ export function EmployeeProfile() {
               <div>{user.position ?? '-'}</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Hızlı İletişim */}
+      <div className="action-grid" style={{ marginBottom: '1rem' }}>
+        <div className="action-btn" onClick={() => navigate('/messages')}>
+          <div className="action-btn-icon" style={{ background: 'rgba(124,58,237,0.12)', color: '#7c3aed' }}>
+            <MessageSquare size={22} />
+          </div>
+          <span className="action-btn-label">Yöneticine Mesaj Gönder</span>
         </div>
       </div>
 
