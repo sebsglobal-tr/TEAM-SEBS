@@ -21,6 +21,23 @@ import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
+/** Manuel duraklatma */
+
+/**
+ * Yardımcı: aktif bir oturumun "şu anki" toplam aktif saniyesini hesaplar.
+ * Hem veritabanındaki kayıtlı totalActiveSeconds değerini,
+ * hem de son resumedAt/startedAt'ten bu yana geçen süreyi kullanır.
+ */
+function computeActiveSeconds(session: {
+  startedAt: Date;
+  lastResumedAt: Date | null;
+  totalActiveSeconds: number;
+}): number {
+  const baseMs = (session.lastResumedAt ?? session.startedAt).getTime();
+  const elapsedSinceLastResume = Math.max(0, Date.now() - baseMs);
+  return session.totalActiveSeconds + Math.floor(elapsedSinceLastResume / 1000);
+}
+
 @Injectable()
 export class WorkSessionsService {
   constructor(
@@ -30,16 +47,71 @@ export class WorkSessionsService {
     private configService: ConfigService,
   ) {}
 
+  // ──────────────────────────────────────────────
+  //  START / RESUME
+  // ──────────────────────────────────────────────
+
+  /**
+   * Çalışma oturumunu başlat (veya duraklatılmış oturumu devam ettir).
+   * Eğer zaten ACTIVE bir oturum varsa onu döndürür (hata fırlatmaz).
+   */
   async start(userId: string) {
+    // 1) Zaten ACTIVE oturum → kullanıcıya hata yerine mevcut oturumu döndür
     const active = await this.prisma.workSession.findFirst({
       where: { userId, status: WorkSessionStatus.ACTIVE },
     });
     if (active) {
-      throw new BadRequestException('Zaten aktif bir çalışma oturumunuz var');
+      return active;
     }
 
+    // 2) PAUSED / AUTO_PAUSED oturum → resume et
+    const paused = await this.prisma.workSession.findFirst({
+      where: {
+        userId,
+        status: { in: [WorkSessionStatus.PAUSED, WorkSessionStatus.AUTO_PAUSED] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (paused) {
+      const now = new Date();
+      const resumed = await this.prisma.workSession.update({
+        where: { id: paused.id },
+        data: {
+          status: WorkSessionStatus.ACTIVE,
+          lastResumedAt: now,
+          pausedAt: null,
+          pauseReason: null,
+          lastActivityAt: now,
+        },
+      });
+
+      await this.prisma.activityEvent.create({
+        data: {
+          userId,
+          workSessionId: resumed.id,
+          type: ActivityEventType.SESSION_START,
+          timestamp: now,
+          metadata: { resumeFrom: paused.status },
+        },
+      });
+
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { currentStatus: EmployeeStatus.ONLINE_ACTIVE, lastActiveAt: now },
+      });
+
+      return resumed;
+    }
+
+    // 3) Hiç oturum yok → yeni oluştur
+    const now = new Date();
     const session = await this.prisma.workSession.create({
-      data: { userId, status: WorkSessionStatus.ACTIVE },
+      data: {
+        userId,
+        status: WorkSessionStatus.ACTIVE,
+        lastResumedAt: now,
+        lastActivityAt: now,
+      },
     });
 
     await this.prisma.activityEvent.create({
@@ -47,12 +119,13 @@ export class WorkSessionsService {
         userId,
         workSessionId: session.id,
         type: ActivityEventType.SESSION_START,
+        timestamp: now,
       },
     });
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { currentStatus: EmployeeStatus.ONLINE_ACTIVE, lastActiveAt: new Date() },
+      data: { currentStatus: EmployeeStatus.ONLINE_ACTIVE, lastActiveAt: now },
     });
 
     await this.auditService.log({
@@ -65,7 +138,11 @@ export class WorkSessionsService {
     return session;
   }
 
-  async stop(userId: string) {
+  // ──────────────────────────────────────────────
+  //  PAUSE (manuel)
+  // ──────────────────────────────────────────────
+
+  async pause(userId: string, reason: string = 'manual') {
     const session = await this.prisma.workSession.findFirst({
       where: { userId, status: WorkSessionStatus.ACTIVE },
     });
@@ -73,9 +150,128 @@ export class WorkSessionsService {
       throw new NotFoundException('Aktif çalışma oturumu bulunamadı');
     }
 
+    const now = new Date();
+    const baseTime = (session.lastResumedAt ?? session.startedAt).getTime();
+    const elapsedSinceLastResume = Math.max(0, Math.floor((now.getTime() - baseTime) / 1000));
+
+    await this.prisma.workSession.update({
+      where: { id: session.id },
+      data: {
+        status: WorkSessionStatus.PAUSED,
+        pausedAt: now,
+        pauseReason: reason,
+        totalActiveSeconds: session.totalActiveSeconds + elapsedSinceLastResume,
+        lastActivityAt: now,
+      },
+    });
+
+    await this.prisma.activityEvent.create({
+      data: {
+        userId,
+        workSessionId: session.id,
+        type: ActivityEventType.SCREEN_LOCK,
+        timestamp: now,
+        durationSeconds: elapsedSinceLastResume,
+        metadata: { pauseReason: reason, totalAfterPause: session.totalActiveSeconds + elapsedSinceLastResume },
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastActiveAt: now },
+    });
+
+    await this.auditService.log({
+      actorId: userId,
+      action: AuditAction.SCREEN_LOCK,
+      entityType: 'WorkSession',
+      entityId: session.id,
+    });
+
+    return {
+      sessionId: session.id,
+      status: WorkSessionStatus.PAUSED,
+      totalActiveSeconds: session.totalActiveSeconds + elapsedSinceLastResume,
+      pauseReason: reason,
+    };
+  }
+
+  // ──────────────────────────────────────────────
+  //  RESUME (duraklatılmış oturumu devam ettir)
+  // ──────────────────────────────────────────────
+
+  async resume(userId: string) {
+    const session = await this.prisma.workSession.findFirst({
+      where: {
+        userId,
+        status: { in: [WorkSessionStatus.PAUSED, WorkSessionStatus.AUTO_PAUSED] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!session) {
+      throw new NotFoundException('Duraklatılmış çalışma oturumu bulunamadı');
+    }
+
+    const now = new Date();
+    const resumed = await this.prisma.workSession.update({
+      where: { id: session.id },
+      data: {
+        status: WorkSessionStatus.ACTIVE,
+        lastResumedAt: now,
+        pausedAt: null,
+        pauseReason: null,
+        lastActivityAt: now,
+      },
+    });
+
+    await this.prisma.activityEvent.create({
+      data: {
+        userId,
+        workSessionId: resumed.id,
+        type: ActivityEventType.ACTIVE,
+        timestamp: now,
+        metadata: { resumedFrom: session.status, pauseDuration: session.pausedAt ? Math.floor((now.getTime() - session.pausedAt.getTime()) / 1000) : 0 },
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { currentStatus: EmployeeStatus.ONLINE_ACTIVE, lastActiveAt: now },
+    });
+
+    return resumed;
+  }
+
+  // ──────────────────────────────────────────────
+  //  STOP (oturumu tamamen bitir)
+  // ──────────────────────────────────────────────
+
+  async stop(userId: string) {
+    const session = await this.prisma.workSession.findFirst({
+      where: { userId, status: { not: WorkSessionStatus.ENDED } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!session) {
+      throw new NotFoundException('Aktif veya duraklatılmış çalışma oturumu bulunamadı');
+    }
+
+    const now = new Date();
+    let finalActiveSeconds = session.totalActiveSeconds;
+
+    // Eğer ACTIVE ise, son resumedAt/startedAt'ten bu yana geçen süreyi de ekle
+    if (session.status === WorkSessionStatus.ACTIVE) {
+      const baseTime = (session.lastResumedAt ?? session.startedAt).getTime();
+      finalActiveSeconds += Math.max(0, Math.floor((now.getTime() - baseTime) / 1000));
+    }
+
     const ended = await this.prisma.workSession.update({
       where: { id: session.id },
-      data: { status: WorkSessionStatus.ENDED, endedAt: new Date() },
+      data: {
+        status: WorkSessionStatus.ENDED,
+        endedAt: now,
+        totalActiveSeconds: finalActiveSeconds,
+        lastActivityAt: now,
+      },
     });
 
     await this.prisma.activityEvent.create({
@@ -83,6 +279,8 @@ export class WorkSessionsService {
         userId,
         workSessionId: session.id,
         type: ActivityEventType.SESSION_END,
+        timestamp: now,
+        durationSeconds: finalActiveSeconds,
       },
     });
 
@@ -98,11 +296,11 @@ export class WorkSessionsService {
       entityId: session.id,
     });
 
+    // Yöneticiye bildirim
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { department: { include: { manager: true } } },
     });
-
     if (user?.department?.managerId) {
       await this.notificationsService.create({
         userId: user.department.managerId,
@@ -116,6 +314,10 @@ export class WorkSessionsService {
     return ended;
   }
 
+  // ──────────────────────────────────────────────
+  //  GET TODAY — gerçek zaman damgalarına göre hesaplama
+  // ──────────────────────────────────────────────
+
   async getToday(userId: string) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -125,94 +327,118 @@ export class WorkSessionsService {
       orderBy: { startedAt: 'desc' },
     });
 
-    const totals = sessions.reduce(
-      (acc, s) => ({
-        active: acc.active + s.totalActiveSeconds,
-        idle: acc.idle + s.totalIdleSeconds,
-        break: acc.break + s.totalBreakSeconds,
-        locked: acc.locked + s.totalLockedSeconds,
-        offline: acc.offline + s.totalOfflineSeconds,
-      }),
-      { active: 0, idle: 0, break: 0, locked: 0, offline: 0 },
+    // Aktif oturum var mı?
+    const activeSession = sessions.find(
+      (s) => s.status === WorkSessionStatus.ACTIVE,
     );
 
-    const activeSession = sessions.find((s) => s.status === WorkSessionStatus.ACTIVE);
+    // Aktif oturumun gerçek süresini hesapla (timestamp-based)
+    const totals = sessions.reduce(
+      (acc, s) => {
+        let activeSecs = s.totalActiveSeconds;
+        // Eğer bu oturum şu an ACTIVE ise, son resumed/started zamanına göre ekleme yap
+        if (s.status === WorkSessionStatus.ACTIVE) {
+          const baseTime = (s.lastResumedAt ?? s.startedAt).getTime();
+          activeSecs += Math.max(0, Math.floor((Date.now() - baseTime) / 1000));
+        }
+        return {
+          active: acc.active + activeSecs,
+          idle: acc.idle + s.totalIdleSeconds,
+          break: acc.break + s.totalBreakSeconds,
+          locked: acc.locked + s.totalLockedSeconds,
+          offline: acc.offline + s.totalOfflineSeconds,
+        };
+      },
+      { active: 0, idle: 0, break: 0, locked: 0, offline: 0 },
+    );
 
     return { sessions, totals, activeSession };
   }
 
-  async getByUser(targetUserId: string, actor: JwtPayload, startDate?: Date, endDate?: Date) {
-    await this.assertAccess(targetUserId, actor);
+  // ──────────────────────────────────────────────
+  //  HEARTBEAT — canlılık sinyali + otomatik duraklatma kontrolü
+  // ──────────────────────────────────────────────
 
-    const where: Record<string, unknown> = { userId: targetUserId };
-    if (startDate || endDate) {
-      where.startedAt = {};
-      if (startDate) (where.startedAt as Record<string, Date>).gte = startDate;
-      if (endDate) (where.startedAt as Record<string, Date>).lte = endDate;
-    }
-
-    return this.prisma.workSession.findMany({
-      where,
-      orderBy: { startedAt: 'desc' },
+  async sendHeartbeat(userId: string, status: EmployeeStatus = EmployeeStatus.ONLINE_ACTIVE) {
+    const session = await this.prisma.workSession.findFirst({
+      where: { userId, status: WorkSessionStatus.ACTIVE },
     });
-  }
-
-  async getReports(filters: {
-    userId?: string;
-    departmentId?: string;
-    startDate: Date;
-    endDate: Date;
-  }) {
-    const where: Record<string, unknown> = {
-      startedAt: { gte: filters.startDate, lte: filters.endDate },
-    };
-
-    if (filters.userId) {
-      where.userId = filters.userId;
-    } else if (filters.departmentId) {
-      where.user = { departmentId: filters.departmentId };
+    if (!session) {
+      throw new BadRequestException('Aktif çalışma oturumu yok');
     }
 
-    const sessions = await this.prisma.workSession.findMany({
-      where,
-      include: {
-        user: {
-          select: { id: true, firstName: true, lastName: true, departmentId: true },
-        },
+    const now = new Date();
+
+    // Aktif mola kontrolü (sadece manuel)
+    const onBreak = await this.prisma.break.findFirst({
+      where: { userId, workSessionId: session.id, endedAt: null },
+    });
+    const effectiveStatus = onBreak ? EmployeeStatus.ON_BREAK : status;
+
+    // Heartbeat kaydı (süre hesaplamaz — sadece canlılık sinyali)
+    await this.prisma.heartbeat.create({
+      data: {
+        userId,
+        workSessionId: session.id,
+        status: effectiveStatus,
+        clientVersion: 'web-1.0',
       },
     });
 
-    const grouped = new Map<string, {
-      userId: string;
-      userName: string;
-      totalActive: number;
-      totalIdle: number;
-      totalBreak: number;
-      totalLocked: number;
-      sessionCount: number;
-    }>();
+    // Son aktivite zamanını güncelle (cron'un auto-pause kararı için)
+    await this.prisma.workSession.update({
+      where: { id: session.id },
+      data: { lastActivityAt: now },
+    });
 
-    for (const s of sessions) {
-      const key = s.userId;
-      const existing = grouped.get(key) ?? {
-        userId: s.userId,
-        userName: `${s.user.firstName} ${s.user.lastName}`,
-        totalActive: 0,
-        totalIdle: 0,
-        totalBreak: 0,
-        totalLocked: 0,
-        sessionCount: 0,
-      };
-      existing.totalActive += s.totalActiveSeconds;
-      existing.totalIdle += s.totalIdleSeconds;
-      existing.totalBreak += s.totalBreakSeconds;
-      existing.totalLocked += s.totalLockedSeconds;
-      existing.sessionCount += 1;
-      grouped.set(key, existing);
-    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { currentStatus: effectiveStatus, lastActiveAt: now },
+    });
 
-    return Array.from(grouped.values());
+    // NOT: Otomatik duraklatma/boşa düşürme YOKTUR. Tüm işlemler manueldir.
+
+    return {
+      sessionId: session.id,
+      status: WorkSessionStatus.ACTIVE,
+      effectiveStatus,
+      currentActiveSeconds: computeActiveSeconds(session),
+    };
   }
+
+  // ──────────────────────────────────────────────
+  //  SYNC — pagehide / sendBeacon için (oturum kapatmaz, sadece son durumu kaydeder)
+  // ──────────────────────────────────────────────
+
+  async syncSession(userId: string) {
+    const session = await this.prisma.workSession.findFirst({
+      where: { userId, status: WorkSessionStatus.ACTIVE },
+    });
+    if (!session) return null;
+
+    const now = new Date();
+
+    // Son heartbeat kaydı
+    await this.prisma.heartbeat.create({
+      data: {
+        userId,
+        workSessionId: session.id,
+        status: EmployeeStatus.ONLINE_ACTIVE,
+        clientVersion: 'web-sync',
+      },
+    });
+
+    await this.prisma.workSession.update({
+      where: { id: session.id },
+      data: { lastActivityAt: now },
+    });
+
+    return { sessionId: session.id, syncedAt: now.toISOString() };
+  }
+
+  // ──────────────────────────────────────────────
+  //  BREAK MANAGEMENT (değişmedi)
+  // ──────────────────────────────────────────────
 
   async startBreak(userId: string) {
     const session = await this.getActiveSession(userId);
@@ -297,59 +523,81 @@ export class WorkSessionsService {
     return { message: 'Mola bitirildi', durationSeconds: duration };
   }
 
-  async sendHeartbeat(userId: string, status: EmployeeStatus = EmployeeStatus.ONLINE_ACTIVE) {
-    const session = await this.prisma.workSession.findFirst({
-      where: { userId, status: WorkSessionStatus.ACTIVE },
-    });
-    if (!session) {
-      throw new BadRequestException('Aktif çalışma oturumu yok');
+  // ──────────────────────────────────────────────
+  //  GETTERS (dashboard, reports, timeline — değişmedi)
+  // ──────────────────────────────────────────────
+
+  async getByUser(targetUserId: string, actor: JwtPayload, startDate?: Date, endDate?: Date) {
+    await this.assertAccess(targetUserId, actor);
+
+    const where: Record<string, unknown> = { userId: targetUserId };
+    if (startDate || endDate) {
+      where.startedAt = {};
+      if (startDate) (where.startedAt as Record<string, Date>).gte = startDate;
+      if (endDate) (where.startedAt as Record<string, Date>).lte = endDate;
     }
 
-    const interval = parseInt(
-      this.configService.get('HEARTBEAT_INTERVAL_SECONDS', '30'),
-      10,
-    );
-
-    const onBreak = await this.prisma.break.findFirst({
-      where: { userId, workSessionId: session.id, endedAt: null },
+    return this.prisma.workSession.findMany({
+      where,
+      orderBy: { startedAt: 'desc' },
     });
-    const effectiveStatus = onBreak ? EmployeeStatus.ON_BREAK : status;
+  }
 
-    await this.prisma.heartbeat.create({
-      data: {
-        userId,
-        workSessionId: session.id,
-        status: effectiveStatus,
-        clientVersion: 'web-1.0',
+  async getReports(filters: {
+    userId?: string;
+    departmentId?: string;
+    startDate: Date;
+    endDate: Date;
+  }) {
+    const where: Record<string, unknown> = {
+      startedAt: { gte: filters.startDate, lte: filters.endDate },
+    };
+
+    if (filters.userId) {
+      where.userId = filters.userId;
+    } else if (filters.departmentId) {
+      where.user = { departmentId: filters.departmentId };
+    }
+
+    const sessions = await this.prisma.workSession.findMany({
+      where,
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, departmentId: true },
+        },
       },
     });
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { currentStatus: effectiveStatus, lastActiveAt: new Date() },
-    });
+    const grouped = new Map<string, {
+      userId: string;
+      userName: string;
+      totalActive: number;
+      totalIdle: number;
+      totalBreak: number;
+      totalLocked: number;
+      sessionCount: number;
+    }>();
 
-    const fieldMap: Partial<Record<EmployeeStatus, string>> = {
-      [EmployeeStatus.ONLINE_ACTIVE]: 'totalActiveSeconds',
-      [EmployeeStatus.ONLINE_IDLE]: 'totalIdleSeconds',
-      [EmployeeStatus.ON_BREAK]: 'totalBreakSeconds',
-      [EmployeeStatus.SCREEN_LOCKED]: 'totalLockedSeconds',
-      [EmployeeStatus.OFFLINE]: 'totalOfflineSeconds',
-    };
-
-    const field = fieldMap[effectiveStatus];
-    if (field) {
-      await this.prisma.workSession.update({
-        where: { id: session.id },
-        data: { [field]: { increment: interval } },
-      });
+    for (const s of sessions) {
+      const key = s.userId;
+      const existing = grouped.get(key) ?? {
+        userId: s.userId,
+        userName: `${s.user.firstName} ${s.user.lastName}`,
+        totalActive: 0,
+        totalIdle: 0,
+        totalBreak: 0,
+        totalLocked: 0,
+        sessionCount: 0,
+      };
+      existing.totalActive += s.totalActiveSeconds;
+      existing.totalIdle += s.totalIdleSeconds;
+      existing.totalBreak += s.totalBreakSeconds;
+      existing.totalLocked += s.totalLockedSeconds;
+      existing.sessionCount += 1;
+      grouped.set(key, existing);
     }
 
-    return {
-      sessionId: session.id,
-      status: effectiveStatus,
-      intervalSeconds: interval,
-    };
+    return Array.from(grouped.values());
   }
 
   async getDashboardStats(actor: JwtPayload) {
@@ -377,12 +625,20 @@ export class WorkSessionsService {
 
     const employeeStats = (employees as any[]).map((emp: any) => {
       const totals = emp.workSessions.reduce(
-        (acc: any, s: any) => ({
-          active: acc.active + s.totalActiveSeconds,
-          idle: acc.idle + s.totalIdleSeconds,
-          break: acc.break + s.totalBreakSeconds,
-          locked: acc.locked + s.totalLockedSeconds,
-        }),
+        (acc: any, s: any) => {
+          let activeSecs = s.totalActiveSeconds;
+          // ACTIVE oturum için canlı hesaplama
+          if (s.status === 'ACTIVE') {
+            const baseTime = (s.lastResumedAt ?? s.startedAt)?.getTime() ?? Date.now();
+            activeSecs += Math.max(0, Math.floor((Date.now() - baseTime) / 1000));
+          }
+          return {
+            active: acc.active + activeSecs,
+            idle: acc.idle + (s.totalIdleSeconds ?? 0),
+            break: acc.break + (s.totalBreakSeconds ?? 0),
+            locked: acc.locked + (s.totalLockedSeconds ?? 0),
+          };
+        },
         { active: 0, idle: 0, break: 0, locked: 0 },
       );
 
@@ -425,6 +681,29 @@ export class WorkSessionsService {
     return this.getDashboardStats(actor);
   }
 
+  async getActiveBreak(userId: string) {
+    const session = await this.prisma.workSession.findFirst({
+      where: { userId, status: WorkSessionStatus.ACTIVE },
+    });
+    if (!session) return null;
+
+    return this.prisma.break.findFirst({
+      where: { userId, workSessionId: session.id, endedAt: null },
+      orderBy: { startedAt: 'desc' },
+    });
+  }
+
+  /** Duraklatılmış bir oturumu bul (frontend'in "devam et" butonu göstermesi için) */
+  async getPausedSession(userId: string) {
+    return this.prisma.workSession.findFirst({
+      where: {
+        userId,
+        status: { in: [WorkSessionStatus.PAUSED, WorkSessionStatus.AUTO_PAUSED] },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   async getSessionTimeline(sessionId: string, actor: JwtPayload) {
     const session = await this.prisma.workSession.findUnique({
       where: { id: sessionId },
@@ -442,17 +721,9 @@ export class WorkSessionsService {
     return session;
   }
 
-  async getActiveBreak(userId: string) {
-    const session = await this.prisma.workSession.findFirst({
-      where: { userId, status: WorkSessionStatus.ACTIVE },
-    });
-    if (!session) return null;
-
-    return this.prisma.break.findFirst({
-      where: { userId, workSessionId: session.id, endedAt: null },
-      orderBy: { startedAt: 'desc' },
-    });
-  }
+  // ──────────────────────────────────────────────
+  //  PRIVATE HELPERS
+  // ──────────────────────────────────────────────
 
   private async getActiveSession(userId: string) {
     const session = await this.prisma.workSession.findFirst({

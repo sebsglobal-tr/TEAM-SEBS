@@ -88,6 +88,7 @@ enum FileVisibility {
 enum WorkSessionStatus {
   ACTIVE
   PAUSED
+  AUTO_PAUSED
   ENDED
 }
 
@@ -431,6 +432,10 @@ model WorkSession {
   userId              String
   startedAt           DateTime          @default(now())
   endedAt             DateTime?
+  pausedAt            DateTime?
+  lastResumedAt       DateTime?
+  lastActivityAt      DateTime?
+  pauseReason         String?
   totalActiveSeconds  Int               @default(0)
   totalIdleSeconds    Int               @default(0)
   totalBreakSeconds   Int               @default(0)

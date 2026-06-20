@@ -1,5 +1,11 @@
 import { api } from './api';
-import type { WorkSessionToday, WorkSession, EmployeeStatus } from '../types';
+import type {
+  WorkSessionToday,
+  WorkSession,
+  EmployeeStatus,
+  PauseResult,
+  HeartbeatResult,
+} from '../types';
 
 export interface EmployeeWorkStat {
   id: string;
@@ -58,16 +64,30 @@ export interface SessionTimeline {
 export const workSessionsService = {
   getToday: () => api.get<WorkSessionToday>('/work-sessions/today').then((r) => r.data),
 
+  /** Başlat (veya duraklatılmışı devam ettir) */
   start: () => api.post<WorkSession>('/work-sessions/start').then((r) => r.data),
 
+  /** Bitir */
   stop: () => api.post<WorkSession>('/work-sessions/stop').then((r) => r.data),
+
+  /** Duraklat (manuel) */
+  pause: () => api.post<PauseResult>('/work-sessions/pause').then((r) => r.data),
+
+  /** Devam ettir */
+  resume: () => api.post<WorkSession>('/work-sessions/resume').then((r) => r.data),
+
+  /** sendBeacon için senkronizasyon */
+  sync: () => api.post('/work-sessions/sync').then((r) => r.data),
+
+  /** Duraklatılmış oturumu sorgula */
+  getPaused: () => api.get<WorkSession | null>('/work-sessions/paused').then((r) => r.data),
 
   startBreak: () => api.post('/work-sessions/break/start').then((r) => r.data),
 
   endBreak: () => api.post('/work-sessions/break/end').then((r) => r.data),
 
   sendHeartbeat: (status?: EmployeeStatus) =>
-    api.post('/work-sessions/heartbeat', { status }).then((r) => r.data),
+    api.post<HeartbeatResult>('/work-sessions/heartbeat', { status }).then((r) => r.data),
 
   getDashboardStats: () =>
     api.get<DashboardWorkStats>('/work-sessions/dashboard-stats').then((r) => r.data),

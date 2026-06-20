@@ -60,21 +60,26 @@ export function AdminDashboard() {
   }, []);
 
   const activeSession = session?.activeSession;
+  const isPaused = activeSession?.status === 'PAUSED';
+
   useWorkSessionHeartbeat({
-    isSessionActive: !!activeSession,
-    isOnBreak,
+    isSessionActive: !!activeSession && activeSession.status === 'ACTIVE',
     onUpdate: load,
-    onAutoBreakStart: async () => {
-      try { await workSessionsService.startBreak(); setIsOnBreak(true); load(); } catch {}
-    },
-    onAutoBreakEnd: async () => {
-      try { await workSessionsService.endBreak(); setIsOnBreak(false); load(); } catch {}
-    },
   });
 
   const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
     setActionLoading(true);
     try { await action(); onSuccess?.(); load(); } finally { setActionLoading(false); }
+  };
+
+  const handleResume = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.resume(); load(); } catch {} finally { setActionLoading(false); }
+  };
+
+  const handlePause = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.pause(); load(); } finally { setActionLoading(false); }
   };
 
   const myTasks = tasks.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
@@ -110,10 +115,16 @@ export function AdminDashboard() {
           subtitle={activeSession ? 'Oturum aktif - süre sayılıyor' : 'Oturum kapalı'}
           action={
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {!activeSession ? (
-                <Button size="sm" onClick={() => handleAction(() => workSessionsService.start())} loading={actionLoading}>
-                  <Play size={14} /> Başla
-                </Button>
+              {!activeSession || isPaused ? (
+                !activeSession ? (
+                  <Button size="sm" onClick={() => handleAction(() => workSessionsService.start())} loading={actionLoading}>
+                    <Play size={14} /> Başla
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={handleResume} loading={actionLoading}>
+                    <Play size={14} /> Devam Et
+                  </Button>
+                )
               ) : (
                 <>
                   {!isOnBreak ? (

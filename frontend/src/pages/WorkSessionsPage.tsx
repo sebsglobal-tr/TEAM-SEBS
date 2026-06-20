@@ -43,10 +43,15 @@ export function WorkSessionsPage() {
   useEffect(() => { load(); }, [load]);
 
   const activeSession = data?.activeSession;
-  useWorkSessionHeartbeat({ isSessionActive: !!activeSession, isOnBreak, onUpdate: load });
+  const isPaused = activeSession?.status === 'PAUSED';
+
+  useWorkSessionHeartbeat({
+    isSessionActive: !!activeSession && activeSession.status === 'ACTIVE',
+    onUpdate: load,
+  });
 
   useEffect(() => {
-    if (activeSession) {
+    if (activeSession && activeSession.status === 'ACTIVE') {
       workSessionsService.getTimeline(activeSession.id).then(setTimeline).catch(() => setTimeline(null));
     } else {
       setTimeline(null);
@@ -62,6 +67,16 @@ export function WorkSessionsPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleResume = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.resume(); load(); } catch {} finally { setActionLoading(false); }
+  };
+
+  const handlePause = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.pause(); load(); } finally { setActionLoading(false); }
   };
 
   if (loading) return <div>Yükleniyor...</div>;
@@ -88,13 +103,22 @@ export function WorkSessionsPage() {
 
           <Card
             title="Çalışma Oturumu"
-            subtitle={activeSession ? 'Oturum aktif — süre otomatik sayılıyor' : 'Oturum kapalı'}
+            subtitle={
+              activeSession?.status === 'ACTIVE' ? 'Oturum aktif — süre otomatik sayılıyor' :
+              isPaused ? 'Oturum duraklatıldı' : 'Oturum kapalı'
+            }
             action={
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {!activeSession ? (
-                  <Button size="sm" onClick={() => handleAction(() => workSessionsService.start())} loading={actionLoading}>
-                    <Play size={14} /> Başla
-                  </Button>
+                {!activeSession || isPaused ? (
+                  !activeSession ? (
+                    <Button size="sm" onClick={() => handleAction(() => workSessionsService.start())} loading={actionLoading}>
+                      <Play size={14} /> Başla
+                    </Button>
+                  ) : (
+                    <Button size="sm" onClick={handleResume} loading={actionLoading}>
+                      <Play size={14} /> Devam Et
+                    </Button>
+                  )
                 ) : (
                   <>
                     {!isOnBreak ? (
@@ -157,7 +181,7 @@ export function WorkSessionsPage() {
                       <td>{formatDuration(s.totalActiveSeconds)}</td>
                       <td>{formatDuration(s.totalIdleSeconds)}</td>
                       <td>{formatDuration(s.totalBreakSeconds)}</td>
-                      <td><Badge variant={s.status === 'ACTIVE' ? 'success' : 'default'}>{s.status}</Badge></td>
+                      <td><Badge variant={s.status === 'ACTIVE' ? 'success' : s.status === 'PAUSED' ? 'warning' : 'default'}>{s.status === 'PAUSED' ? 'PAUSED' : s.status === 'ACTIVE' ? 'ACTIVE' : 'ENDED'}</Badge></td>
                     </tr>
                   ))}
                 </tbody>

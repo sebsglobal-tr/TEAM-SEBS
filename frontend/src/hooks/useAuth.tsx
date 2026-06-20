@@ -32,7 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authService
         .getMe()
         .then(setUser)
-        .catch(() => localStorage.clear())
+        .catch(() => {
+          // Token geçersiz olabilir, localStorage'ı temizlemeden sadece kullanıcıyı null yap.
+          // Token'lar hala duruyor — login sayfasına yönlendirilen kullanıcı
+          // yeni giriş yaparsa eski tokenlar üzerine yazılır.
+          // NOT: localStorage.clear() yapmıyoruz çünkü refresh token hala
+          // geçerli olabilir ve sonraki bir istekte refresh yapılabilir.
+          setUser(null);
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);

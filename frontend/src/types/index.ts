@@ -24,6 +24,9 @@ export type TaskStatus =
   | 'ADMIN_APPROVED'
   | 'CANCELLED';
 
+export type WorkSessionStatusType = 'ACTIVE' | 'PAUSED' | 'AUTO_PAUSED' | 'ENDED';
+export type PauseReason = 'idle' | 'auto_pause' | 'manual' | null;
+
 export interface User {
   id: string;
   firstName: string;
@@ -156,11 +159,32 @@ export interface WorkSession {
   userId: string;
   startedAt: string;
   endedAt?: string;
+  pausedAt?: string;
+  lastResumedAt?: string;
+  lastActivityAt?: string;
+  pauseReason?: PauseReason;
   totalActiveSeconds: number;
   totalIdleSeconds: number;
   totalBreakSeconds: number;
   totalLockedSeconds: number;
-  status: string;
+  totalOfflineSeconds?: number;
+  status: WorkSessionStatusType;
+}
+
+export interface PauseResult {
+  sessionId: string;
+  status: WorkSessionStatusType;
+  totalActiveSeconds: number;
+  pauseReason: string;
+}
+
+export interface HeartbeatResult {
+  sessionId: string;
+  status: WorkSessionStatusType;
+  effectiveStatus?: EmployeeStatus;
+  currentActiveSeconds?: number;
+  autoPaused?: boolean;
+  reason?: string;
 }
 
 export interface AuthResponse {

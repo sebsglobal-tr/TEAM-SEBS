@@ -1,43 +1,48 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { workSessionsService } from '../services/work-sessions.service';
-import type { EmployeeStatus } from '../types';
+
+/**
+ * useWorkSessionHeartbeat
+ *
+ * Çok basit heartbeat gönderici:
+ * - Her 30 saniyede bir ONLINE_ACTIVE heartbeat gönderir
+ * - Sekme görünürlük/odak değişimlerinde tetiklenir
+ * - İnternet bağlantısı geri geldiğinde tetiklenir
+ * - Sayfa kapanırken sendBeacon ile son durumu gönderir
+ *
+ * NOT: Kullanıcı asla otomatik molaya/boşa düşürülmez.
+ * Tüm duraklatma/bitirme işlemleri sadece manueldir.
+ */
 
 const HEARTBEAT_INTERVAL_MS = 30000;
-const IDLE_BREAK_THRESHOLD_MS = 180_000; // 3 dakika
 
 interface UseHeartbeatOptions {
+  /** Oturum aktif mi? */
   isSessionActive: boolean;
-  isOnBreak: boolean;
+  /** Her heartbeat sonrası çağrılır */
   onUpdate?: () => void;
-  onAutoBreakStart?: () => void;
-  onAutoBreakEnd?: () => void;
 }
 
 export function useWorkSessionHeartbeat({
   isSessionActive,
-  isOnBreak,
   onUpdate,
-  onAutoBreakStart,
-  onAutoBreakEnd,
 }: UseHeartbeatOptions) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastActivityRef = useRef<number>(Date.now());
-  const autoBreakRef = useRef<boolean>(false);
+  const sessionActiveRef = useRef<boolean>(isSessionActive);
+  const callbacksRef = useRef({ onUpdate });
+  callbacksRef.current = { onUpdate };
 
-  // Keep latest callbacks in refs to avoid re-creating the effect
-  const callbacksRef = useRef({ onUpdate, onAutoBreakStart, onAutoBreakEnd });
-  callbacksRef.current = { onUpdate, onAutoBreakStart, onAutoBreakEnd };
+  sessionActiveRef.current = isSessionActive;
 
-  // Reset activity timer on user interaction
-  const resetActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-
-    // If user becomes active again while on auto-break → end it
-    if (autoBreakRef.current) {
-      autoBreakRef.current = false;
-      callbacksRef.current.onAutoBreakEnd?.();
+  const sendHeartbeat = async () => {
+    if (!sessionActiveRef.current) return;
+    try {
+      await workSessionsService.sendHeartbeat('ONLINE_ACTIVE');
+      callbacksRef.current.onUpdate?.();
+    } catch {
+      // Oturum sonlanmış olabilir
     }
-  }, []);
+  };
 
   useEffect(() => {
     if (!isSessionActive) {
@@ -48,54 +53,40 @@ export function useWorkSessionHeartbeat({
       return;
     }
 
-    // Activity events to listen to
-    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    activityEvents.forEach((ev) => window.addEventListener(ev, resetActivity));
-
-    const sendHeartbeat = async () => {
-      const now = Date.now();
-      const idleMs = now - lastActivityRef.current;
-
-      // Auto-break check: idle for 3+ min and not already on break
-      if (idleMs >= IDLE_BREAK_THRESHOLD_MS && !isOnBreak && !autoBreakRef.current) {
-        autoBreakRef.current = true;
-        callbacksRef.current.onAutoBreakStart?.();
-        return; // wait for break to be active before sending heartbeat
-      }
-
-      let status: EmployeeStatus = 'ONLINE_ACTIVE';
-
-      if (isOnBreak || autoBreakRef.current) {
-        status = 'ON_BREAK';
-      } else if (document.hidden || idleMs >= IDLE_BREAK_THRESHOLD_MS) {
-        status = 'ONLINE_IDLE';
-      }
-
-      try {
-        await workSessionsService.sendHeartbeat(status);
-        callbacksRef.current.onUpdate?.();
-      } catch {
-        // Session may have ended
-      }
-    };
-
     sendHeartbeat();
     intervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
     const handleVisibility = () => {
-      if (!document.hidden && !isOnBreak) {
-        resetActivity();
-        sendHeartbeat();
-      }
+      if (!document.hidden && sessionActiveRef.current) sendHeartbeat();
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
+    const handleFocus = () => {
+      if (sessionActiveRef.current) sendHeartbeat();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    const handleOnline = () => {
+      if (sessionActiveRef.current) sendHeartbeat();
+    };
+    window.addEventListener('online', handleOnline);
+
+    const handlePageHide = () => {
+      if (sessionActiveRef.current) {
+        const url = `${import.meta.env.VITE_API_URL ?? '/api'}/work-sessions/sync`;
+        const blob = new Blob([JSON.stringify({})], { type: 'application/json' });
+        try { navigator.sendBeacon(url, blob); } catch { /* */ }
+      }
+    };
+    window.addEventListener('pagehide', handlePageHide);
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      activityEvents.forEach((ev) => window.removeEventListener(ev, resetActivity));
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('pagehide', handlePageHide);
     };
-    // Only re-run when session active/break state changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSessionActive, isOnBreak]);
+  }, [isSessionActive]);
 }

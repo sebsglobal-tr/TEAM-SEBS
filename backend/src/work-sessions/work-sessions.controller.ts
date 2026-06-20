@@ -32,6 +32,31 @@ export class WorkSessionsController {
     return this.workSessionsService.stop(user.sub);
   }
 
+  /**
+   * Oturumu duraklat (manuel — kullanıcı isteğiyle)
+   */
+  @Post('pause')
+  pause(@CurrentUser() user: JwtPayload) {
+    return this.workSessionsService.pause(user.sub, 'manual');
+  }
+
+  /**
+   * Duraklatılmış oturumu devam ettir
+   */
+  @Post('resume')
+  resume(@CurrentUser() user: JwtPayload) {
+    return this.workSessionsService.resume(user.sub);
+  }
+
+  /**
+   * sendBeacon / pagehide sırasında son durumu senkronize et
+   * Auth header olmadan da çalışabilmesi için GET kullanılır (basit ping)
+   */
+  @Post('sync')
+  sync(@CurrentUser() user: JwtPayload) {
+    return this.workSessionsService.syncSession(user.sub);
+  }
+
   @Post('break/start')
   startBreak(@CurrentUser() user: JwtPayload) {
     return this.workSessionsService.startBreak(user.sub);
@@ -53,6 +78,14 @@ export class WorkSessionsController {
   @Get('today')
   getToday(@CurrentUser() user: JwtPayload) {
     return this.workSessionsService.getToday(user.sub);
+  }
+
+  /**
+   * Duraklatılmış oturumu sorgula (frontend "devam et" butonu gösterecek)
+   */
+  @Get('paused')
+  getPaused(@CurrentUser() user: JwtPayload) {
+    return this.workSessionsService.getPausedSession(user.sub);
   }
 
   @Get('dashboard-stats')

@@ -33,9 +33,25 @@ export function ManagerDashboard() {
   const [session, setSession] = useState<WorkSessionToday | null>(null);
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [displaySeconds, setDisplaySeconds] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const displayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /**
+   * Timer hesaplama: totalActiveSeconds + (now - lastResumedAt ?? startedAt)
+   * setInterval SADECE ekranı günceller, süreyi hesaplamaz.
+   */
+  const calculateActiveSeconds = useCallback((sessionData: WorkSessionToday | null): number => {
+    const active = sessionData?.activeSession;
+    if (!active) return 0;
+    if (active.status === 'ACTIVE') {
+      const refTime = active.lastResumedAt
+        ? new Date(active.lastResumedAt).getTime()
+        : new Date(active.startedAt).getTime();
+      return active.totalActiveSeconds + Math.max(0, Math.floor((Date.now() - refTime) / 1000));
+    }
+    return active.totalActiveSeconds;
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -48,6 +64,7 @@ export function ManagerDashboard() {
       setStats(statsData);
       setTasks(tasksData);
       setSession(sessionData);
+      setDisplaySeconds(calculateActiveSeconds(sessionData));
       setUnreadMessages(msgUnread);
     } catch (err) {
       console.error('Dashboard yüklenirken hata:', err);
@@ -64,39 +81,47 @@ export function ManagerDashboard() {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  // Real-time timer
+  // Real-time timer — Date.now() tabanlı, setInterval sadece görüntü günceller
   const activeSession = session?.activeSession;
-  const breakSeconds = session?.totals?.break ?? 0;
+  const isActive = !!activeSession && activeSession.status === 'ACTIVE';
+  const isPaused = activeSession?.status === 'PAUSED';
 
   useEffect(() => {
-    if (!activeSession) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (!isActive) {
+      if (displayRef.current) { clearInterval(displayRef.current); displayRef.current = null; }
       return;
     }
-    const startedAt = new Date(activeSession.startedAt).getTime();
-    const baseActiveSeconds = activeSession.totalActiveSeconds ?? 0;
 
-    const calcElapsed = () => {
-      if (isOnBreak) return;
-      const sessionWallSeconds = Math.floor((Date.now() - startedAt) / 1000);
-      const estimatedActive = Math.max(0, sessionWallSeconds - breakSeconds);
-      setElapsedSeconds(Math.max(baseActiveSeconds, estimatedActive));
-    };
+    displayRef.current = setInterval(() => {
+      setDisplaySeconds((prev) => {
+        if (session?.activeSession?.status === 'ACTIVE') {
+          return calculateActiveSeconds(session);
+        }
+        return prev;
+      });
+    }, 1000);
 
-    calcElapsed();
-    intervalRef.current = setInterval(calcElapsed, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [activeSession, isOnBreak, breakSeconds]);
+    return () => { if (displayRef.current) clearInterval(displayRef.current); };
+  }, [isActive, session, calculateActiveSeconds]);
 
   useWorkSessionHeartbeat({
-    isSessionActive: !!activeSession,
-    isOnBreak,
+    isSessionActive: isActive,
     onUpdate: loadData,
   });
 
   const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
     setActionLoading(true);
     try { await action(); onSuccess?.(); loadData(); } finally { setActionLoading(false); }
+  };
+
+  const handleResume = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.resume(); loadData(); } catch {} finally { setActionLoading(false); }
+  };
+
+  const handlePause = async () => {
+    setActionLoading(true);
+    try { await workSessionsService.pause(); loadData(); } finally { setActionLoading(false); }
   };
 
   const handleStatusChange = async (taskId: string, status: string) => {
@@ -153,11 +178,11 @@ export function ManagerDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2, color: activeSession ? (isOnBreak ? '#f59e0b' : '#10b981') : 'var(--text-secondary)' }}>
-                  {formatHHMMSS(elapsedSeconds)}
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2, color: activeSession ? (isOnBreak ? '#f59e0b' : '#10b981') : (isPaused ? '#f59e0b' : 'var(--text-secondary)') }}>
+                  {formatHHMMSS(displaySeconds)}
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                  {activeSession ? (isOnBreak ? '☕ Molada' : '🟢 Çalışıyor') : '⏹️ Başlatılmadı'}
+                  {activeSession ? (isOnBreak ? '☕ Molada' : '🟢 Çalışıyor') : (isPaused ? '⏸️ Duraklatıldı' : '⏹️ Başlatılmadı')}
                 </div>
               </div>
               {session && (
@@ -168,10 +193,16 @@ export function ManagerDashboard() {
               )}
             </div>
             <div style={{ display: 'flex', gap: '0.35rem' }}>
-              {!activeSession ? (
-                <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.start())} disabled={actionLoading}>
-                  <Play size={14} /> Çalışmayı Başlat
-                </button>
+              {!activeSession || isPaused ? (
+                !activeSession ? (
+                  <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.start())} disabled={actionLoading}>
+                    <Play size={14} /> Çalışmayı Başlat
+                  </button>
+                ) : (
+                  <button className="btn btn-primary btn-sm" onClick={handleResume} disabled={actionLoading}>
+                    <Play size={14} /> Devam Et
+                  </button>
+                )
               ) : (
                 <>
                   {!isOnBreak ? (
@@ -183,7 +214,7 @@ export function ManagerDashboard() {
                       Moladan Dön
                     </button>
                   )}
-                  <button className="btn btn-danger btn-sm" onClick={() => handleAction(() => workSessionsService.stop(), () => { setIsOnBreak(false); setElapsedSeconds(0); })} disabled={actionLoading}>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleAction(() => workSessionsService.stop(), () => { setIsOnBreak(false); setDisplaySeconds(0); })} disabled={actionLoading}>
                     <Square size={14} /> Bitir
                   </button>
                 </>
