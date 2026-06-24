@@ -15,6 +15,7 @@ interface TaskEntry {
   dueDate: string;
   estimatedMinutes: string;
   responsibleManagerId: string;
+  assignedToEmployeeId: string;
   files: File[];
 }
 
@@ -45,6 +46,7 @@ function emptyTask(): TaskEntry {
     dueDate: '',
     estimatedMinutes: '',
     responsibleManagerId: '',
+    assignedToEmployeeId: '',
     files: [],
   };
 }
@@ -53,15 +55,19 @@ export function AdminBulkCreate() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<TaskEntry[]>([emptyTask()]);
   const [managers, setManagers] = useState<EmployeeUser[]>([]);
+  const [employees, setEmployees] = useState<EmployeeUser[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; count: number; message: string } | null>(null);
   const [taskErrors, setTaskErrors] = useState<Record<string, string[]>>({});
+
+  const hasValidTasks = tasks.some((t) => t.title.trim().length > 0);
 
   useEffect(() => {
     usersService.getAll({ status: 'ACTIVE' })
       .then((data) => {
         const all = Array.isArray(data) ? data : [];
         setManagers(all.filter((u: any) => u.role === 'MANAGER'));
+        setEmployees(all.filter((u: any) => u.role === 'EMPLOYEE'));
       })
       .catch(console.error);
   }, []);
@@ -134,6 +140,7 @@ export function AdminBulkCreate() {
           dueDate: entry.dueDate || undefined,
           estimatedMinutes: entry.estimatedMinutes ? parseInt(entry.estimatedMinutes, 10) : undefined,
           responsibleManagerId: entry.responsibleManagerId || undefined,
+          assignedToId: entry.assignedToEmployeeId || undefined,
         };
 
         try {
@@ -334,6 +341,23 @@ export function AdminBulkCreate() {
                 </select>
               </div>
 
+              <div className="form-group">
+                <label className="form-label" style={{ color: '#10b981' }}>Atanacak Çalışan (Doğrudan)</label>
+                <select
+                  className="form-select"
+                  value={task.assignedToEmployeeId}
+                  onChange={(e) => updateTask(task.key, 'assignedToEmployeeId', e.target.value)}
+                >
+                  <option value="">— Atama Yapma (Önce Yöneticiye Ata) —</option>
+                  {employees.map((e: any) => (
+                    <option key={e.id} value={e.id}>{e.firstName} {e.lastName} {e.department?.name ? `(${e.department.name})` : ''}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                  Doğrudan çalışana atarsanız yönetici atamasına gerek kalmaz.
+                </div>
+              </div>
+
               {/* ─── File Upload ─── */}
               <div className="form-group" style={{ marginTop: '0.5rem' }}>
                 <label className="form-label">Dosya Ekle</label>
@@ -384,11 +408,11 @@ export function AdminBulkCreate() {
         <button
           className="btn btn-primary"
           onClick={handleSubmit}
-          disabled={submitting || validTasks.length === 0}
+          disabled={submitting || !hasValidTasks}
           style={{ marginLeft: 'auto' }}
         >
           <Save size={16} />
-          {submitting ? 'Kaydediliyor...' : `${validTasks.length} Görevi Kaydet`}
+          {submitting ? 'Kaydediliyor...' : `${tasks.length} Görev${tasks.length > 1 ? 'i' : ''} Kaydet`}
         </button>
       </div>
     </div>

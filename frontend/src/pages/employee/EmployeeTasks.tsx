@@ -116,7 +116,7 @@ function TaskCard({ task, onStatusUpdate, onView }: {
         <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
           {task.title}
           {isOverdue(task) && (
-            <AlertTriangle size={14} style={{ color: '#ef4444', display: 'inline', marginLeft: 6, verticalAlign: 'middle' }} title="Gecikmiş" />
+            <AlertTriangle size={14} style={{ color: '#ef4444', display: 'inline', marginLeft: 6, verticalAlign: 'middle' }} data-tip="Gecikmiş" />
           )}
         </h3>
 

@@ -48,6 +48,9 @@ export function AdminUsers() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  // Edit modal
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', position: '', departmentId: '' });
 
   const load = async () => {
     try {
@@ -88,6 +91,47 @@ export function AdminUsers() {
       load();
     } catch (err) {
       console.error('Aktif edilirken hata:', err);
+    }
+  };
+
+  const openEditModal = (u: User) => {
+    setEditUser(u);
+    setEditForm({
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+      position: u.position || '',
+      departmentId: u.departmentId || '',
+    });
+    // Load departments for edit modal too
+    departmentsService.getAll().then(setDepartments).catch(() => {});
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setSubmitting(true);
+    setFormError('');
+    setFormSuccess('');
+    try {
+      await usersService.update(editUser.id, {
+        firstName: editForm.firstName.trim(),
+        lastName: editForm.lastName.trim(),
+        email: editForm.email.trim(),
+        position: editForm.position.trim() || undefined,
+        departmentId: editForm.departmentId || undefined,
+      });
+      setFormSuccess('Kullanıcı başarıyla güncellendi!');
+      setTimeout(() => {
+        setEditUser(null);
+        setFormSuccess('');
+        load();
+      }, 1000);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setFormError(typeof msg === 'string' ? msg : 'Güncelleme sırasında hata oluştu');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -192,7 +236,7 @@ export function AdminUsers() {
                   <td>{formatDateTime(u.createdAt)}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
-                      <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/users/${u.id}`)} title="Detay">
+                      <button className="btn btn-ghost btn-sm" onClick={() => openEditModal(u)} title="Düzenle">
                         <Edit3 size={14} />
                       </button>
                       {u.status === 'ACTIVE' ? (
@@ -288,6 +332,77 @@ export function AdminUsers() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)} disabled={submitting}>İptal</button>
                 <button type="submit" className="btn btn-primary" disabled={submitting}>
                   {submitting ? 'Oluşturuluyor...' : 'Kullanıcı Oluştur'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Kullanıcı Düzenleme Modalı ─── */}
+      {editUser && (
+        <div className="modal-overlay" onClick={() => { if (!submitting) setEditUser(null); }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3>Kullanıcı Düzenle: {editUser.firstName} {editUser.lastName}</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditUser(null)} disabled={submitting}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="modal-body">
+                {formError && (
+                  <div style={{ padding: '0.65rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: 8, marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                    {formError}
+                  </div>
+                )}
+                {formSuccess && (
+                  <div style={{ padding: '0.65rem', background: 'rgba(16,185,129,0.1)', color: '#10b981', borderRadius: 8, marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                    {formSuccess}
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Ad *</label>
+                    <input className="form-input" value={editForm.firstName} onChange={(e) => setEditForm(p => ({ ...p, firstName: e.target.value }))} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Soyad *</label>
+                    <input className="form-input" value={editForm.lastName} onChange={(e) => setEditForm(p => ({ ...p, lastName: e.target.value }))} required />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">E-posta *</label>
+                  <input type="email" className="form-input" value={editForm.email} onChange={(e) => setEditForm(p => ({ ...p, email: e.target.value }))} required />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Departman</label>
+                    <select className="form-select" value={editForm.departmentId} onChange={(e) => setEditForm(p => ({ ...p, departmentId: e.target.value }))}>
+                      <option value="">— Seçin —</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Pozisyon</label>
+                    <input className="form-input" placeholder="Örn: Yazılım Geliştirici" value={editForm.position} onChange={(e) => setEditForm(p => ({ ...p, position: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div style={{ padding: '0.65rem', background: 'var(--bg-primary)', borderRadius: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Rol: <strong>{editUser.role === 'SUPER_ADMIN' ? 'Admin' : editUser.role === 'MANAGER' ? 'Yönetici' : 'Çalışan'}</strong>
+                  {' · '}Durum: <strong>{editUser.status === 'ACTIVE' ? 'Aktif' : 'Pasif'}</strong>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditUser(null)} disabled={submitting}>İptal</button>
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Kaydediliyor...' : 'Kaydet'}
                 </button>
               </div>
             </form>

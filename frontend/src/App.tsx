@@ -122,6 +122,8 @@ function AppRoutes() {
         <Route path="dashboard" element={<ManagerDashboardPage />} />
         <Route path="employees" element={<ManagerEmployees />} />
         <Route path="employees/:id" element={<ManagerEmployeeDetail />} />
+        <Route path="tasks" element={<ManagerTasks />} />
+        <Route path="tasks/:id" element={<ManagerTaskDetail />} />
         <Route path="reports" element={<ManagerReports />} />
         <Route path="files" element={<ManagerFiles />} />
         <Route path="work-sessions" element={<ManagerWorkSessions />} />
@@ -188,6 +190,7 @@ import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';
 import { ManagerDashboard as ManagerDashboardPage } from './pages/manager/ManagerDashboard';
 import { ManagerEmployees } from './pages/manager/ManagerEmployees';
 import { ManagerEmployeeDetail } from './pages/manager/ManagerEmployeeDetail';
+import { ManagerTasks } from './pages/manager/ManagerTasks';
 import { ManagerReports } from './pages/manager/ManagerReports';
 import { ManagerFiles } from './pages/manager/ManagerFiles';
 import { ManagerWorkSessions } from './pages/manager/ManagerWorkSessions';

@@ -437,9 +437,13 @@
   transform: scale(1.05);
 }
 
+/* Role-specific stat card icon colors — consolidated via CSS custom properties */
 .admin-theme .stat-card-icon { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
 .manager-theme .stat-card-icon { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
 .employee-theme .stat-card-icon { background: rgba(5, 150, 105, 0.12); color: #059669; }
+.stat-card-icon.admin { background: rgba(124, 58, 237, 0.12); color: #7c3aed; }
+.stat-card-icon.manager { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
+.stat-card-icon.employee { background: rgba(5, 150, 105, 0.12); color: #059669; }
 
 .stat-card-label {
   font-size: 0.78rem;

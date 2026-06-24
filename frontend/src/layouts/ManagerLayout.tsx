@@ -13,6 +13,7 @@ import {
   X,
   Bell,
   Briefcase,
+  CheckSquare,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -30,6 +31,7 @@ const managerNav = [
     section: 'Yönetim',
     items: [
       { to: '/manager/employees', icon: Users, label: 'Çalışanlarım' },
+      { to: '/manager/tasks', icon: CheckSquare, label: 'Görevler' },
       { to: '/manager/reports', icon: BarChart3, label: 'Raporlar' },
       { to: '/manager/files', icon: FolderOpen, label: 'Dosyalar' },
       { to: '/manager/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },

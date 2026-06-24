@@ -60,13 +60,24 @@ export function AdminTasks() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [search, setSearch] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
   const [stats, setStats] = useState<any>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchDebounced(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
+        const filterParams = getFilter(activeTab);
+        const params: Record<string, string | undefined> = { ...filterParams };
+        if (searchDebounced) params.search = searchDebounced;
         const [taskData, statsData] = await Promise.all([
-          tasksService.getAll(getFilter(activeTab)),
+          tasksService.getAll(params),
           tasksService.getStats(),
         ]);
         setTasks(taskData);
@@ -78,15 +89,9 @@ export function AdminTasks() {
       }
     };
     load();
-  }, [activeTab]);
+  }, [activeTab, searchDebounced]);
 
   const filtered = tasks.filter((t) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return t.title.toLowerCase().includes(q) ||
-      t.description?.toLowerCase().includes(q) ||
-      t.assignedTo?.firstName?.toLowerCase().includes(q);
-  }).filter((t) => {
     if (activeTab === 'completed') {
       return ['MANAGER_APPROVED', 'ADMIN_APPROVED', 'CANCELLED'].includes(t.status);
     }

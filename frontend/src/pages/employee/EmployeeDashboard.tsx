@@ -106,7 +106,6 @@ export function EmployeeDashboard() {
 
   useWorkSessionHeartbeat({
     isSessionActive: !!activeSession,
-    isOnBreak,
     onUpdate: loadData,
   });
 
