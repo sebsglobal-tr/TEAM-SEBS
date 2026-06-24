@@ -75,32 +75,34 @@ export function EmployeeDashboard() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const activeSession = session?.activeSession;
-  const breakSeconds = session?.totals?.break ?? 0;
 
-  // Real-time counter — accounts for breaks
+  // Real-time counter — backend'in totalActiveSeconds değerini baz alır
   useEffect(() => {
     if (!activeSession) {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      setElapsedSeconds(0);
       return;
     }
-    const startedAt = new Date(activeSession.startedAt).getTime();
-    // Use the backend's totalActiveSeconds as base (accounts for breaks/idle already)
+    // Backend'in doğru toplam aktif süresi (mola/idle hesaba katılmış)
     const baseActiveSeconds = activeSession.totalActiveSeconds ?? 0;
 
     const calcElapsed = () => {
-      if (isOnBreak) return; // don't tick while on break — just show stored total
-      const sessionWallSeconds = Math.floor((Date.now() - startedAt) / 1000);
-      // Subtract break seconds from wall clock to get approximate active time
-      const estimatedActive = Math.max(0, sessionWallSeconds - breakSeconds);
-      // Use whichever is higher: backend stored or estimated
-      const total = Math.max(baseActiveSeconds, estimatedActive);
-      setElapsedSeconds(total);
+      if (isOnBreak) {
+        setElapsedSeconds(baseActiveSeconds);
+        return;
+      }
+      // lastResumedAt son sürdürme anı, yoksa startedAt
+      const refTime = activeSession.lastResumedAt
+        ? new Date(activeSession.lastResumedAt).getTime()
+        : new Date(activeSession.startedAt).getTime();
+      const elapsedSinceRef = Math.max(0, Math.floor((Date.now() - refTime) / 1000));
+      setElapsedSeconds(baseActiveSeconds + elapsedSinceRef);
     };
 
     calcElapsed();
     intervalRef.current = setInterval(calcElapsed, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [activeSession, isOnBreak, breakSeconds]);
+  }, [activeSession, isOnBreak]);
 
   useWorkSessionHeartbeat({
     isSessionActive: !!activeSession,
@@ -420,21 +422,19 @@ export function EmployeeDashboard() {
             </div>
           </div>
 
-          {/* Dosya/Rapor Yükleme İhtiyacı */}
-          {session?.activeSession && (
-            <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/employee/upload-report')}>
-              <div className="card-body" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Upload size={18} style={{ color: 'var(--accent)' }} />
-                <div>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Gün Sonu Raporu</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    Çalışmayı bitirmeden raporunuzu yükleyin
-                  </div>
+          {/* Gün Sonu Raporu */}
+          <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid var(--accent)', cursor: 'pointer' }} onClick={() => navigate('/employee/upload-report')}>
+            <div className="card-body" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Upload size={18} style={{ color: 'var(--accent)' }} />
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Gün Sonu Raporu</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  {session?.activeSession ? 'Çalışmayı bitirmeden raporunuzu yükleyin' : 'Yeni rapor eklemek için tıklayın'}
                 </div>
-                <ArrowRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }} />
               </div>
+              <ArrowRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }} />
             </div>
-          )}
+          </div>
 
           {/* Son Yüklenen Dosyalar */}
           {recentFiles.length > 0 && (

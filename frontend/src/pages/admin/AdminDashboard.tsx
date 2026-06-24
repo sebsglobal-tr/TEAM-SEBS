@@ -32,6 +32,7 @@ export function AdminDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // İlk yükleme: tüm veriler
   const load = useCallback(async () => {
     try {
       const [statsData, filesData, tasksData] = await Promise.all([
@@ -51,11 +52,18 @@ export function AdminDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh for real-time employee status
+  // Auto-refresh: sadece canlı çalışan durumlarını güncelle (dosyalar/görevler sabit)
+  const refreshStats = useCallback(async () => {
+    try {
+      const statsData = await workSessionsService.getDashboardStats();
+      setStats(statsData);
+    } catch { /* sessiz */ }
+  }, []);
+
   useEffect(() => {
-    const interval = setInterval(load, REFRESH_INTERVAL);
+    const interval = setInterval(refreshStats, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [refreshStats]);
 
   const handleStatusChange = async (taskId: string, status: string) => {
     try {

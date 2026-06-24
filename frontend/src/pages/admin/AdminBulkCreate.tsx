@@ -55,6 +55,7 @@ export function AdminBulkCreate() {
   const [managers, setManagers] = useState<EmployeeUser[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; count: number; message: string } | null>(null);
+  const [taskErrors, setTaskErrors] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     usersService.getAll({ status: 'ACTIVE' })
@@ -92,11 +93,30 @@ export function AdminBulkCreate() {
     }));
   };
 
-  const validTasks = tasks.filter((t) => t.title.trim().length > 0);
+  const validateTasks = () => {
+    const errors: Record<string, string[]> = {};
+    for (const t of tasks) {
+      const errs: string[] = [];
+      if (!t.title.trim()) errs.push('Başlık zorunludur.');
+      if (t.dueDate) {
+        const d = new Date(t.dueDate);
+        if (isNaN(d.getTime())) errs.push('Geçersiz tarih formatı.');
+        else if (d < new Date(new Date().toDateString())) errs.push('Teslim tarihi geçmiş bir tarih olamaz.');
+      }
+      if (t.estimatedMinutes && (isNaN(parseInt(t.estimatedMinutes)) || parseInt(t.estimatedMinutes) <= 0)) {
+        errs.push('Tahmini süre geçerli bir sayı olmalıdır.');
+      }
+      if (errs.length > 0) errors[t.key] = errs;
+    }
+    setTaskErrors(errors);
+    const valid = tasks.filter((t) => !errors[t.key]?.length && t.title.trim());
+    return valid;
+  };
 
   const handleSubmit = async () => {
+    const validTasks = validateTasks();
     if (validTasks.length === 0) {
-      setResult({ success: false, count: 0, message: 'En az bir görev başlığı girin.' });
+      setResult({ success: false, count: 0, message: 'Hiçbir görev geçerli değil. Lütfen hataları düzeltin.' });
       return;
     }
 
@@ -156,6 +176,7 @@ export function AdminBulkCreate() {
 
       if (successCount > 0) {
         setTasks([emptyTask()]);
+        setTaskErrors({});
       }
     } catch (err: any) {
       setResult({
@@ -224,6 +245,20 @@ export function AdminBulkCreate() {
                   />
                 </div>
               </div>
+
+              {/* Satır içi validasyon hataları */}
+              {taskErrors[task.key]?.length > 0 && (
+                <div style={{
+                  background: 'rgba(239,68,68,0.1)', borderRadius: 8, padding: '0.5rem 0.75rem',
+                  marginBottom: '0.75rem', fontSize: '0.78rem', color: '#ef4444',
+                }}>
+                  {taskErrors[task.key].map((err, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <AlertCircle size={12} /> {err}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Açıklama</label>

@@ -14,6 +14,7 @@ import {
   CheckSquare,
   Clock,
   User,
+  MessageCircle,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -39,7 +40,7 @@ const employeeNav = [
     section: 'İçerik',
     items: [
       { to: '/employee/files', icon: FolderOpen, label: 'Dosyalarım' },
-      { to: '/employee/feedbacks', icon: MessageSquare, label: 'Geri Bildirimler' },
+      { to: '/employee/feedbacks', icon: MessageCircle, label: 'Geri Bildirimler' },
       { to: '/employee/history', icon: Clock, label: 'Geçmiş' },
     ],
   },

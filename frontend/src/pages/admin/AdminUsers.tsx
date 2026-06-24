@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Search, UserCheck, UserX, Plus, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, UserCheck, UserX, Plus, X, Edit3 } from 'lucide-react';
 import { usersService } from '../../services/users.service';
 import { departmentsService } from '../../services/departments.service';
 import { formatDateTime } from '../../utils/format';
@@ -37,6 +38,7 @@ const emptyForm: CreateUserForm = {
 };
 
 export function AdminUsers() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -76,6 +78,16 @@ export function AdminUsers() {
       load();
     } catch (err) {
       console.error('Pasife alırken hata:', err);
+    }
+  };
+
+  const handleReactivate = async (id: string) => {
+    if (!confirm('Bu kullanıcıyı tekrar aktif etmek istediğinize emin misiniz?')) return;
+    try {
+      await usersService.update(id, { status: 'ACTIVE' } as any);
+      load();
+    } catch (err) {
+      console.error('Aktif edilirken hata:', err);
     }
   };
 
@@ -160,8 +172,11 @@ export function AdminUsers() {
               <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Kullanıcı bulunamadı.</td></tr>
             ) : (
               users.map((u) => (
-                <tr key={u.id}>
-                  <td style={{ fontWeight: 500 }}>{u.firstName} {u.lastName}</td>
+                <tr key={u.id} style={{ cursor: 'pointer' }}
+                  onClick={() => navigate(`/admin/users/${u.id}`)}>
+                  <td style={{ fontWeight: 500, textDecoration: 'underline', textDecorationColor: 'var(--border)', textUnderlineOffset: 3 }}>
+                    {u.firstName} {u.lastName}
+                  </td>
                   <td>{u.email}</td>
                   <td>
                     <span className={`badge ${u.role === 'SUPER_ADMIN' ? 'badge-danger' : u.role === 'MANAGER' ? 'badge-info' : 'badge-success'}`}>
@@ -176,14 +191,22 @@ export function AdminUsers() {
                   <td>{u.department?.name ?? '-'}</td>
                   <td>{formatDateTime(u.createdAt)}</td>
                   <td>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleDeactivate(u.id)}
-                      disabled={u.status !== 'ACTIVE'}
-                      title={u.status === 'ACTIVE' ? 'Pasife al' : 'Zaten pasif'}
-                    >
-                      {u.status === 'ACTIVE' ? <UserX size={14} /> : <UserCheck size={14} />}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
+                      <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/admin/users/${u.id}`)} title="Detay">
+                        <Edit3 size={14} />
+                      </button>
+                      {u.status === 'ACTIVE' ? (
+                        <button className="btn btn-ghost btn-sm" style={{ color: '#ef4444' }}
+                          onClick={() => handleDeactivate(u.id)} title="Pasife al">
+                          <UserX size={14} />
+                        </button>
+                      ) : (
+                        <button className="btn btn-ghost btn-sm" style={{ color: '#10b981' }}
+                          onClick={() => handleReactivate(u.id)} title="Aktif et">
+                          <UserCheck size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

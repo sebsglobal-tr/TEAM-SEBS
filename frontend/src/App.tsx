@@ -102,6 +102,8 @@ function AppRoutes() {
         <Route path="reports" element={<AdminReports />} />
         <Route path="files" element={<AdminFiles />} />
         <Route path="work-sessions" element={<AdminWorkSessions />} />
+        <Route path="departments" element={<AdminDepartments />} />
+        <Route path="audit-log" element={<AdminAuditLog />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
 
@@ -124,6 +126,7 @@ function AppRoutes() {
         <Route path="files" element={<ManagerFiles />} />
         <Route path="work-sessions" element={<ManagerWorkSessions />} />
         <Route path="timer" element={<ManagerTimer />} />
+        <Route path="tasks/:id" element={<ManagerTaskDetail />} />
         <Route path="profile" element={<ManagerProfile />} />
       </Route>
 
@@ -178,6 +181,8 @@ import { AdminReports } from './pages/admin/AdminReports';
 import { AdminFiles } from './pages/admin/AdminFiles';
 import { AdminWorkSessions } from './pages/admin/AdminWorkSessions';
 import { AdminSettings } from './pages/admin/AdminSettings';
+import { DepartmentsPage as AdminDepartments } from './pages/DepartmentsPage';
+import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';
 
 // Manager Pages
 import { ManagerDashboard as ManagerDashboardPage } from './pages/manager/ManagerDashboard';
@@ -187,6 +192,7 @@ import { ManagerReports } from './pages/manager/ManagerReports';
 import { ManagerFiles } from './pages/manager/ManagerFiles';
 import { ManagerWorkSessions } from './pages/manager/ManagerWorkSessions';
 import { ManagerTimer } from './pages/manager/ManagerTimer';
+import { ManagerTaskDetail } from './pages/manager/ManagerTaskDetail';
 import { ManagerProfile } from './pages/manager/ManagerProfile';
 
 // Employee Pages

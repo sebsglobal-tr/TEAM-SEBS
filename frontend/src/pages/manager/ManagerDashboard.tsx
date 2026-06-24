@@ -374,14 +374,14 @@ export function ManagerDashboard() {
             <div className="card-subtitle">Ekibinizdeki görevlerin akış görünümü</div>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/manager/employees')}>
-            Ekibi Gör
+            Tüm Görevler
           </button>
         </div>
         <div className="card-body" style={{ paddingTop: '0.5rem' }}>
           <DailyTaskView
             tasks={tasks}
             onStatusChange={handleStatusChange}
-            onViewDetail={(id) => navigate(`/admin/tasks/${id}`)}
+            onViewDetail={(id) => navigate(`/manager/tasks/${id}`)}
           />
         </div>
       </div>

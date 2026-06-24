@@ -49,7 +49,7 @@ function getFilter(tab: TabKey): Record<string, string | undefined> {
     case 'distributed': return { status: 'ASSIGNED_TO_EMPLOYEE' };
     case 'overdue': return { overdue: 'true' };
     case 'blocked': return { status: 'BLOCKED' };
-    case 'completed': return { status: 'MANAGER_APPROVED' };
+    case 'completed': return {}; // client-side filtreleme
     default: return {};
   }
 }
@@ -86,6 +86,11 @@ export function AdminTasks() {
     return t.title.toLowerCase().includes(q) ||
       t.description?.toLowerCase().includes(q) ||
       t.assignedTo?.firstName?.toLowerCase().includes(q);
+  }).filter((t) => {
+    if (activeTab === 'completed') {
+      return ['MANAGER_APPROVED', 'ADMIN_APPROVED', 'CANCELLED'].includes(t.status);
+    }
+    return true;
   });
 
   return (

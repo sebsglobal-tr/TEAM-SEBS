@@ -56,6 +56,8 @@ const adminNav = [
   {
     section: 'Sistem',
     items: [
+      { to: '/admin/departments', icon: Users, label: 'Departmanlar' },
+      { to: '/admin/audit-log', icon: Shield, label: 'Denetim Kaydı' },
       { to: '/admin/settings', icon: Settings, label: 'Ayarlar' },
     ],
   },
@@ -88,14 +90,20 @@ export function AdminLayout() {
   };
 
   const getPageTitle = () => {
+    // Önce tam eşleşme ara, sonra prefix eşleşmesi yap
+    let bestMatch = { label: 'Admin Paneli', depth: 0 };
     for (const section of adminNav) {
       for (const item of section.items) {
-        if (location.pathname === item.to || location.pathname.startsWith(item.to + '/')) {
-          return item.label;
+        if (location.pathname === item.to) {
+          return item.label; // tam eşleşme → hemen dön
+        }
+        // Prefix eşleşmesi: en uzun eşleşeni seç
+        if (location.pathname.startsWith(item.to + '/') && item.to.length > bestMatch.depth) {
+          bestMatch = { label: item.label, depth: item.to.length };
         }
       }
     }
-    return 'Admin Paneli';
+    return bestMatch.label;
   };
 
   return (

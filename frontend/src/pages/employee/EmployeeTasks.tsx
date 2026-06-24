@@ -286,13 +286,13 @@ export function EmployeeTasks() {
             <div className="stat-card-value">{dueSoonTasks.length}</div>
           </div>
         </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/timer')}>
-          <div className="stat-card-icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-            <Clock size={18} />
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
+          <div className="stat-card-icon" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
+            <CheckCircle size={18} />
           </div>
           <div>
-            <div className="stat-card-label">Çalışma Sayacı</div>
-            <div className="stat-card-value" style={{ fontSize: '0.85rem' }}>Başlat</div>
+            <div className="stat-card-label">Tamamlanan</div>
+            <div className="stat-card-value">{completedTasks.length}</div>
           </div>
         </div>
       </div>

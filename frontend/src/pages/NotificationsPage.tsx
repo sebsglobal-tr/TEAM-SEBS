@@ -5,6 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { notificationsService } from '../services/notifications.service';
+import { useAuth } from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 import type { Notification } from '../types';
 
@@ -31,6 +32,7 @@ const TYPE_VARIANT: Record<string, 'info' | 'success' | 'warning' | 'danger' | '
 
 export function NotificationsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
@@ -41,10 +43,17 @@ export function NotificationsPage() {
 
   useEffect(() => { load(); }, [filter]);
 
+  const getTaskRoute = (taskId: string) => {
+    if (!user) return `/employee/tasks/${taskId}`;
+    if (user.role === 'SUPER_ADMIN') return `/admin/tasks/${taskId}`;
+    if (user.role === 'MANAGER') return `/manager/tasks/${taskId}`;
+    return `/employee/tasks/${taskId}`;
+  };
+
   const handleMarkRead = async (id: string, metadata?: Record<string, unknown>) => {
     await notificationsService.markAsRead(id);
     if (metadata?.taskId) {
-      navigate(`/tasks/${metadata.taskId as string}`);
+      navigate(getTaskRoute(metadata.taskId as string));
     } else {
       load();
     }
