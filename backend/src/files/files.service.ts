@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   BadRequestException,
   NotFoundException,
   ForbiddenException,
@@ -9,7 +10,8 @@ import { FileType, FileVisibility, AuditAction, UserRole, NotificationType } fro
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { LocalStorageProvider } from './storage/local-storage.provider';
+import { IStorageProvider } from './storage/storage.interface';
+import { STORAGE_PROVIDER } from './files.module';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 // Only truly dangerous extensions are blocked — everything else is allowed.
@@ -20,7 +22,7 @@ const BLOCKED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.scr', '.vbs', '.ms
 export class FilesService {
   constructor(
     private prisma: PrismaService,
-    private storage: LocalStorageProvider,
+    @Inject(STORAGE_PROVIDER) private storage: IStorageProvider,
     private configService: ConfigService,
     private auditService: AuditService,
     private notificationsService: NotificationsService,
