@@ -91,9 +91,11 @@ export class FilesController {
     @Res() res: Response,
   ) {
     const { file, buffer } = await this.filesService.download(id, user);
+    // Türkçe karakterler dahil non-ASCII dosya adlarını RFC 5987 ile encode et
+    const encodedName = encodeURIComponent(file.originalName);
     res.set({
       'Content-Type': file.mimeType,
-      'Content-Disposition': `attachment; filename="${file.originalName}"`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodedName}`,
       'Content-Length': file.size,
     });
     res.send(buffer);

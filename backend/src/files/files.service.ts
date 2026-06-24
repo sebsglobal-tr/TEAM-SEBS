@@ -247,20 +247,13 @@ export class FilesService {
     file: { uploadedById: string; employeeId: string | null; taskId: string | null },
     actor: JwtPayload,
   ) {
-    if (actor.role === UserRole.SUPER_ADMIN) return;
+    // SUPER_ADMIN ve MANAGER rollerinin tüm dosyalara tam erişimi vardır
+    if (actor.role === UserRole.SUPER_ADMIN || actor.role === UserRole.MANAGER) return;
     if (file.uploadedById === actor.sub || file.employeeId === actor.sub) return;
 
     if (file.taskId) {
       const task = await this.prisma.task.findUnique({ where: { id: file.taskId } });
       if (task?.assignedToId === actor.sub) return;
-    }
-
-    if (actor.role === UserRole.MANAGER) {
-      const filter = await this.buildAccessFilter(actor);
-      const accessible = await this.prisma.file.findFirst({
-        where: { ...filter, id: (file as { id?: string }).id },
-      });
-      if (accessible) return;
     }
 
     throw new ForbiddenException('Bu dosyaya erişim yetkiniz yok');
