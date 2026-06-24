@@ -157,7 +157,13 @@ export class FilesService {
 
     await this.assertAccess(file, actor);
 
-    const buffer = await this.storage.download(file.path);
+    let buffer: Buffer;
+    try {
+      buffer = await this.storage.download(file.path);
+    } catch (err) {
+      // Dosya diskte yoksa (ör. sunucu yeniden başlatıldı, uploads silindi)
+      throw new NotFoundException('Dosya sunucuda bulunamadı. Dosya silinmiş veya depolama alanı temizlenmiş olabilir.');
+    }
 
     await this.auditService.log({
       actorId: actor.sub,

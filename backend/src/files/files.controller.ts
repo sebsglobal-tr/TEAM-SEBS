@@ -5,16 +5,15 @@ import {
   Delete,
   Param,
   Query,
-  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
   Body,
   BadRequestException,
+  StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
 import { FileType } from '@prisma/client';
 import { FilesService } from './files.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -88,19 +87,17 @@ export class FilesController {
   async download(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
-    @Res() res: Response,
   ) {
     const { file, buffer } = await this.filesService.download(id, user);
     // Türkçe karakterler dahil non-ASCII dosya adlarını RFC 5987 ile encode et
     // Aynı anda ASCII fallback filename gönder (yaşlı tarayıcılar ve mobil için)
     const asciiName = file.originalName.replace(/[^\x20-\x7E]/g, '_');
     const encodedName = encodeURIComponent(file.originalName).replace(/%20/g, ' ');
-    res.set({
-      'Content-Type': file.mimeType,
-      'Content-Disposition': `attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
-      'Content-Length': file.size,
+    return new StreamableFile(buffer, {
+      type: file.mimeType,
+      disposition: `attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
+      length: file.size,
     });
-    res.send(buffer);
   }
 
   @Delete(':id')
