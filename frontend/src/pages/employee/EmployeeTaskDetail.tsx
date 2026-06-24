@@ -68,6 +68,8 @@ export function EmployeeTaskDetail() {
 
   // Dosya yükleme
   const [uploadingFile, setUploadingFile] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkDesc, setLinkDesc] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -157,6 +159,29 @@ export function EmployeeTaskDetail() {
       setLinkDesc('');
       setShowLinkInput(false);
     });
+  };
+
+  const handleDownloadFile = async (file: any) => {
+    if (file.fileType === 'link') {
+      window.open(file.fileUrl, '_blank', 'noopener');
+      return;
+    }
+    setDownloadError('');
+    setDownloadingFileId(file.id);
+    try {
+      // file.fileUrl = "/api/files/{File.id}/download" şeklinde, download fonksiyonu URL'den ID'yi çıkarır
+      await filesService.download(file.fileUrl, file.fileName);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      let msg = 'Dosya indirilirken hata oluştu';
+      if (status === 403) msg = 'Bu dosyaya erişim yetkiniz yok';
+      else if (status === 404) msg = 'Dosya bulunamadı veya silinmiş';
+      else if (err?.response?.data?.message) msg = err.response.data.message;
+      setDownloadError(msg);
+      setTimeout(() => setDownloadError(''), 5000);
+    } finally {
+      setDownloadingFileId(null);
+    }
   };
 
   const handleUpdateProgress = async () => {
@@ -364,38 +389,74 @@ export function EmployeeTaskDetail() {
           <div className="card-header">
             <div className="card-title">Dosyalar ve Linkler</div>
           </div>
+          {downloadError && (
+            <div style={{
+              margin: '0 1rem 0.5rem', padding: '0.5rem 0.75rem',
+              background: 'rgba(239,68,68,0.1)', borderRadius: 6,
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              fontSize: '0.82rem', color: '#ef4444',
+            }}>
+              <AlertCircle size={14} />
+              {downloadError}
+            </div>
+          )}
           <div className="card-body" style={{ padding: '0.5rem 0' }}>
-            {task.files.map(file => (
-              <div key={file.id} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.5rem 1rem', borderBottom: '1px solid var(--border)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {file.fileType === 'link' ? (
-                    <Paperclip size={14} style={{ color: 'var(--accent)' }} />
-                  ) : (
-                    <FileText size={14} style={{ color: 'var(--accent)' }} />
-                  )}
-                  <div>
-                    <div style={{ fontSize: '0.85rem' }}>{file.fileName}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                      {file.uploadedBy?.firstName} {file.uploadedBy?.lastName} · {formatDateTime(file.createdAt)}
+            {task.files.map(file => {
+              const isDownloading = downloadingFileId === file.id;
+              return (
+                <div key={file.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '0.5rem 1rem', borderBottom: '1px solid var(--border)',
+                  cursor: file.fileType !== 'link' && isDownloading ? 'wait' : file.fileType !== 'link' ? 'pointer' : 'default',
+                  transition: 'background 0.15s',
+                }}
+                  onClick={() => file.fileType !== 'link' && handleDownloadFile(file)}
+                  onMouseEnter={(e) => { if (file.fileType !== 'link' && !isDownloading) (e.currentTarget as HTMLElement).style.background = 'var(--bg-secondary)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  title={file.fileType !== 'link' ? (isDownloading ? 'İndiriliyor...' : 'İndirmek için tıklayın') : ''}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                    {file.fileType === 'link' ? (
+                      <Paperclip size={14} style={{ color: 'var(--accent)' }} />
+                    ) : (
+                      <FileText size={14} style={{ color: 'var(--accent)' }} />
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '0.85rem',
+                        textDecoration: file.fileType !== 'link' ? 'underline' : 'none',
+                        textDecorationColor: 'var(--border)',
+                        textUnderlineOffset: 3,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{file.fileName}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                        {file.uploadedBy?.firstName} {file.uploadedBy?.lastName} · {formatDateTime(file.createdAt)}
+                      </div>
                     </div>
                   </div>
+                  <div style={{ flexShrink: 0, marginLeft: '0.5rem' }}>
+                    {file.fileType === 'link' ? (
+                      <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
+                        Aç
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={(e) => { e.stopPropagation(); handleDownloadFile(file); }}
+                        disabled={isDownloading}
+                        title="Dosyayı indir"
+                      >
+                        {isDownloading ? (
+                          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                        ) : (
+                          'İndir'
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  {file.fileType === 'link' ? (
-                    <a href={file.fileUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">
-                      Aç
-                    </a>
-                  ) : (
-                    <button className="btn btn-ghost btn-sm" onClick={() => window.open(file.fileUrl, '_blank')}>
-                      İndir
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

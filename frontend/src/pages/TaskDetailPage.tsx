@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Send, Check, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Upload, Send, Check, RotateCcw, AlertCircle, Download } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -32,6 +32,8 @@ export function TaskDetailPage() {
   const [comment, setComment] = useState('');
   const [revisionNote, setRevisionNote] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
@@ -66,6 +68,25 @@ export function TaskDetailPage() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadAttachment = async (att: any) => {
+    if (!att.file) return;
+    setDownloadError('');
+    setDownloadingFileId(att.id);
+    try {
+      await filesService.download(att.file.id, att.file.originalName);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      let msg = 'Dosya indirilirken hata oluştu';
+      if (status === 403) msg = 'Bu dosyaya erişim yetkiniz yok';
+      else if (status === 404) msg = 'Dosya bulunamadı veya silinmiş';
+      else if (err?.response?.data?.message) msg = err.response.data.message;
+      setDownloadError(msg);
+      setTimeout(() => setDownloadError(''), 5000);
+    } finally {
+      setDownloadingFileId(null);
     }
   };
 
@@ -164,30 +185,63 @@ export function TaskDetailPage() {
           }
         >
           <input ref={fileInputRef} type="file" hidden onChange={handleFileUpload} />
+          {downloadError && (
+            <div style={{
+              marginBottom: '0.75rem', padding: '0.5rem 0.75rem',
+              background: 'rgba(239,68,68,0.1)', borderRadius: 6,
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              fontSize: '0.82rem', color: '#ef4444',
+            }}>
+              <AlertCircle size={14} />
+              {downloadError}
+            </div>
+          )}
           {task.attachments?.length ? (
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {task.attachments.map((att) => (
-                <li
-                  key={att.id}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem', background: 'var(--bg-primary)', borderRadius: '8px' }}
-                >
-                  <span style={{ fontSize: '0.9rem' }}>{att.file?.originalName}</span>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {att.file ? formatFileSize(att.file.size) : ''}
-                    </span>
-                    {att.file && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => filesService.download(att.file!.id, att.file!.originalName)}
-                      >
-                        İndir
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              ))}
+              {task.attachments.map((att) => {
+                const isDownloading = downloadingFileId === att.id;
+                return (
+                  <li
+                    key={att.id}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '0.5rem', background: 'var(--bg-primary)', borderRadius: '8px',
+                      cursor: att.file ? 'pointer' : 'default',
+                      transition: 'background 0.15s',
+                    }}
+                    onClick={() => att.file && handleDownloadAttachment(att)}
+                    onMouseEnter={(e) => { if (att.file && !isDownloading) (e.currentTarget as HTMLElement).style.background = 'var(--bg-secondary)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-primary)'; }}
+                    title={att.file ? 'İndirmek için tıklayın' : ''}
+                  >
+                    <span style={{
+                      fontSize: '0.9rem',
+                      textDecoration: att.file ? 'underline' : 'none',
+                      textDecorationColor: 'var(--border)',
+                      textUnderlineOffset: 3,
+                    }}>{att.file?.originalName}</span>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {att.file ? formatFileSize(att.file.size) : ''}
+                      </span>
+                      {att.file && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleDownloadAttachment(att); }}
+                          disabled={isDownloading}
+                        >
+                          {isDownloading ? (
+                            <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                          ) : (
+                            <Download size={14} />
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Henüz dosya eklenmemiş</p>

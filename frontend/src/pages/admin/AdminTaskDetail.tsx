@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Upload, Download, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, UserCheck, Clock, MessageSquare, FileText, AlertCircle, CheckCircle2, Upload, Download, Trash2, Users, Paperclip, ExternalLink } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
 import { usersService } from '../../services/users.service';
 import { filesService } from '../../services/files.service';
@@ -31,6 +31,8 @@ export function AdminTaskDetail() {
   const [assignEmployeeId, setAssignEmployeeId] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -127,6 +129,30 @@ export function AdminTaskDetail() {
       }
     } catch (err) {
       console.error('Dosya silinirken hata:', err);
+    }
+  };
+
+  const handleDownloadFile = async (file: any) => {
+    // Link tipindeki kayıtları yeni sekmede aç
+    if (file.fileType === 'link') {
+      window.open(file.fileUrl, '_blank', 'noopener');
+      return;
+    }
+    setDownloadError('');
+    setDownloadingFileId(file.id);
+    try {
+      // file.fileUrl = "/api/files/{File.id}/download" şeklinde, download fonksiyonu URL'den ID'yi çıkarır
+      await filesService.download(file.fileUrl, file.fileName);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      let msg = 'Dosya indirilirken hata oluştu';
+      if (status === 403) msg = 'Bu dosyaya erişim yetkiniz yok';
+      else if (status === 404) msg = 'Dosya bulunamadı veya silinmiş';
+      else if (err?.response?.data?.message) msg = err.response.data.message;
+      setDownloadError(msg);
+      setTimeout(() => setDownloadError(''), 5000);
+    } finally {
+      setDownloadingFileId(null);
     }
   };
 
@@ -302,33 +328,81 @@ export function AdminTaskDetail() {
               <AlertCircle size={16} /> {uploadError}
             </div>
           )}
+          {downloadError && (
+            <div className="alert-banner alert-error" style={{ marginBottom: '0.75rem' }}>
+              <AlertCircle size={16} /> {downloadError}
+            </div>
+          )}
           {!task.files || task.files.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
               Henüz dosya yüklenmemiş.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              {task.files.map((file: any) => (
-                <div key={file.id} style={{
-                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  padding: '0.5rem 0.75rem', background: 'var(--bg-primary)',
-                  borderRadius: 8, fontSize: '0.82rem',
-                }}>
-                  <FileText size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {file.fileName}
-                  </span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', flexShrink: 0 }}>
-                    {file.uploadedBy?.firstName} {file.uploadedBy?.lastName}
-                  </span>
-                  <button className="btn btn-ghost btn-sm" style={{ padding: '4px' }} onClick={() => filesService.download(file.id, file.fileName)} title="İndir">
-                    <Download size={14} />
-                  </button>
-                  <button className="btn btn-ghost btn-sm" style={{ padding: '4px', color: '#ef4444' }} onClick={() => handleDeleteFile(file.id)} title="Sil">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+              {task.files.map((file: any) => {
+                const isLink = file.fileType === 'link';
+                const isDownloading = downloadingFileId === file.id;
+                return (
+                  <div key={file.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    padding: '0.5rem 0.75rem', background: 'var(--bg-primary)',
+                    borderRadius: 8, fontSize: '0.82rem',
+                    cursor: isLink ? 'default' : (isDownloading ? 'wait' : 'pointer'),
+                    transition: 'background 0.15s',
+                  }}
+                    onClick={() => !isLink && !isDownloading && handleDownloadFile(file)}
+                    onMouseEnter={(e) => { if (!isLink && !isDownloading) (e.currentTarget as HTMLElement).style.background = 'var(--bg-secondary)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-primary)'; }}
+                    title={isLink ? (file.fileUrl || '') : (isDownloading ? 'İndiriliyor...' : 'İndirmek için tıklayın')}
+                  >
+                    {isLink ? (
+                      <Paperclip size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    ) : (
+                      <FileText size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    )}
+                    <span style={{
+                      flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      textDecoration: isLink ? 'none' : 'underline',
+                      textDecorationColor: 'var(--border)', textUnderlineOffset: 3,
+                    }}>
+                      {file.fileName}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.72rem', flexShrink: 0 }}>
+                      {file.uploadedBy?.firstName} {file.uploadedBy?.lastName}
+                    </span>
+                    {isLink ? (
+                      <a
+                        href={file.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '4px' }}
+                        title="Linki aç"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    ) : (
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: '4px', opacity: isDownloading ? 0.5 : 1 }}
+                        onClick={(e) => { e.stopPropagation(); handleDownloadFile(file); }}
+                        title="Dosyayı indir"
+                        disabled={isDownloading}
+                      >
+                        {isDownloading ? (
+                          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }} />
+                        ) : (
+                          <Download size={14} />
+                        )}
+                      </button>
+                    )}
+                    <button className="btn btn-ghost btn-sm" style={{ padding: '4px', color: '#ef4444' }} onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.id); }} title="Dosyayı sil">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -45,14 +45,37 @@ export const filesService = {
       .then((r) => r.data);
   },
 
-  download: async (id: string, filename: string) => {
-    const response = await api.get(`/files/${id}/download`, { responseType: 'blob' });
-    const url = window.URL.createObjectURL(response.data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    window.URL.revokeObjectURL(url);
+  /**
+   * Dosyayı indirir.
+   * @param idOrUrl File ID'si veya "/api/files/{id}/download" şeklinde tam URL
+   * @param filename İndirilen dosyaya verilecek ad
+   */
+  download: async (idOrUrl: string, filename: string) => {
+    // Tam URL verilmişse (örn. /api/files/{id}/download) File ID'sini çıkar
+    const fileId = idOrUrl.startsWith('/api/')
+      ? idOrUrl.replace('/api/files/', '').replace('/download', '').split('?')[0]
+      : idOrUrl;
+    try {
+      const response = await api.get(`/files/${fileId}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      // responseType:'blob' olduğunda hata yanıtları Blob olarak gelir, JSON çözümlemesi yap
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await (err.response.data as Blob).text();
+          const parsed = JSON.parse(text);
+          err.response.data = parsed;
+        } catch { /* blob JSON değilse sorun değil */ }
+      }
+      throw err;
+    }
   },
 
   remove: (id: string) => api.delete(`/files/${id}`).then((r) => r.data),
