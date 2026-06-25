@@ -160,6 +160,7 @@ function AppRoutes() {
 
       {/* ─── Shared Routes ──────────────────────────────────────── */}
       <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -215,3 +216,4 @@ import { EmployeeProfile } from './pages/employee/EmployeeProfile';
 
 // Shared Pages
 import { MessagesPage } from './pages/MessagesPage';
+import { NotificationsPage } from './pages/NotificationsPage';

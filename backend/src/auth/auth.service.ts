@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -119,6 +120,33 @@ export class AuthService {
 
     const { passwordHash: _, ...safeUser } = user;
     return safeUser;
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) throw new UnauthorizedException('Kullanıcı bulunamadı');
+
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new BadRequestException('Mevcut şifre hatalı');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
+
+    await this.auditService.log({
+      actorId: userId,
+      action: AuditAction.PASSWORD_CHANGE,
+      entityType: 'User',
+      entityId: userId,
+    });
+
+    return { message: 'Şifre başarıyla değiştirildi' };
   }
 
   private async generateTokens(payload: JwtPayload) {

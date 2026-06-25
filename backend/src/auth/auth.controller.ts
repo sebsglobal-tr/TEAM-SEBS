@@ -12,6 +12,7 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../common/guards/active-user.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -48,5 +49,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, ActiveUserGuard)
   getMe(@CurrentUser() user: JwtPayload) {
     return this.authService.getMe(user.sub);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard, ActiveUserGuard)
+  changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.sub, dto.currentPassword, dto.newPassword);
   }
 }
