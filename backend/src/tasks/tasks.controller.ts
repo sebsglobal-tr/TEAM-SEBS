@@ -17,7 +17,7 @@ import {
   UpdateStatusDto,
   AssignTaskDto,
   SplitTaskDto,
-  CreateBulkTaskDto,
+  CreateBulkTasksDto,
   CreateCommentDto,
 } from './dto/create-task.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -42,8 +42,8 @@ export class TasksController {
 
   @Post('bulk')
   @Roles(UserRole.SUPER_ADMIN)
-  createBulk(@Body() tasks: CreateBulkTaskDto[], @CurrentUser() user: JwtPayload) {
-    return this.tasksService.createBulk(tasks, user);
+  createBulk(@Body() dto: CreateBulkTasksDto, @CurrentUser() user: JwtPayload) {
+    return this.tasksService.createBulk(dto.tasks, user);
   }
 
   @Get()

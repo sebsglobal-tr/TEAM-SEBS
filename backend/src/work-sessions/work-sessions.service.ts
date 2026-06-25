@@ -352,7 +352,14 @@ export class WorkSessionsService {
       { active: 0, idle: 0, break: 0, locked: 0, offline: 0 },
     );
 
-    return { sessions, totals, activeSession };
+    // Aktif mola var mı?
+    const onBreak = activeSession
+      ? await this.prisma.break.findFirst({
+          where: { userId, workSessionId: activeSession.id, endedAt: null },
+        })
+      : null;
+
+    return { sessions, totals, activeSession, isOnBreak: !!onBreak };
   }
 
   // ──────────────────────────────────────────────
@@ -449,6 +456,18 @@ export class WorkSessionsService {
       throw new BadRequestException('Zaten moladasınız');
     }
 
+    // Molaya çıkmadan önceki aktif süreyi snapshot'la
+    const now = new Date();
+    const baseTime = (session.lastResumedAt ?? session.startedAt).getTime();
+    const elapsedSinceResume = Math.max(0, Math.floor((now.getTime() - baseTime) / 1000));
+    await this.prisma.workSession.update({
+      where: { id: session.id },
+      data: {
+        totalActiveSeconds: session.totalActiveSeconds + elapsedSinceResume,
+        lastResumedAt: now,
+      },
+    });
+
     await this.prisma.break.create({
       data: { userId, workSessionId: session.id },
     });
@@ -496,7 +515,10 @@ export class WorkSessionsService {
 
     await this.prisma.workSession.update({
       where: { id: session.id },
-      data: { totalBreakSeconds: { increment: duration } },
+      data: {
+        totalBreakSeconds: { increment: duration },
+        lastResumedAt: now, // Moladan dönüşte aktif süre sayacını sıfırla
+      },
     });
 
     await this.prisma.activityEvent.create({

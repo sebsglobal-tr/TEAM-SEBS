@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { usersService } from '../../services/users.service';
 
 interface EmployeeUser {
@@ -22,9 +23,11 @@ export function AdminAssignments() {
   const [managers, setManagers] = useState<ManagerUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const load = async () => {
     try {
+      setError('');
       const [empData, allUsers] = await Promise.all([
         usersService.getEmployees(),
         usersService.getAll({ status: 'ACTIVE' }),
@@ -34,6 +37,7 @@ export function AdminAssignments() {
       setManagers(all.filter((u: any) => u.role === 'MANAGER'));
     } catch (err) {
       console.error('Yüklenirken hata:', err);
+      setError('Veriler yüklenirken bir hata oluştu.');
     } finally {
       setLoading(false);
     }
@@ -43,11 +47,13 @@ export function AdminAssignments() {
 
   const assignManager = async (employeeId: string, managerId: string) => {
     setSavingId(employeeId);
+    setError('');
     try {
       await usersService.update(employeeId, { managerId } as any);
       load();
     } catch (err) {
       console.error('Atama yapılırken hata:', err);
+      setError('Atama yapılırken bir hata oluştu.');
     } finally {
       setSavingId(null);
     }
@@ -55,11 +61,13 @@ export function AdminAssignments() {
 
   const removeAssignment = async (employeeId: string) => {
     setSavingId(employeeId);
+    setError('');
     try {
       await usersService.update(employeeId, { managerId: '' } as any);
       load();
     } catch (err) {
       console.error('Atama kaldırılırken hata:', err);
+      setError('Atama kaldırılırken bir hata oluştu.');
     } finally {
       setSavingId(null);
     }
@@ -73,6 +81,12 @@ export function AdminAssignments() {
         <h1 className="page-title">Yönetici - Çalışan Atamaları</h1>
         <p className="page-subtitle">Çalışanları yöneticilere atayın</p>
       </div>
+
+      {error && (
+        <div className="alert-banner alert-error" style={{ marginBottom: '0.75rem' }}>
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header"><div className="card-title">Çalışan Listesi</div></div>

@@ -40,20 +40,26 @@ const STATUS_ACTIONS = [
 export function ManagerReports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [feedbackInputs, setFeedbackInputs] = useState<Record<string, string>>({});
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const load = async () => {
     try {
+      setFilterLoading(true);
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
       const { data } = await api.get('/reports', { params });
+      // Yanıt ya direkt array ya da { data: [] } formatında olabilir
+      const reportList = Array.isArray(data) ? data : data?.data ?? [];
+      setReports(reportList);
       setReports(Array.isArray(data) ? data : data?.data ?? []);
     } catch (err) {
       console.error('Raporlar yüklenirken hata:', err);
     } finally {
       setLoading(false);
+      setFilterLoading(false);
     }
   };
 

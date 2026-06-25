@@ -123,14 +123,18 @@ export class WorkSessionsController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
   getReports(
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('userId') userId?: string,
     @Query('departmentId') departmentId?: string,
   ) {
+    // Tarihleri güvenli şekilde parse et, geçersizse varsayılan kullan
+    const now = new Date();
+    const parsedStart = startDate ? new Date(startDate) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const parsedEnd = endDate ? new Date(endDate) : now;
     return this.workSessionsService.getReports({
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: isNaN(parsedStart.getTime()) ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) : parsedStart,
+      endDate: isNaN(parsedEnd.getTime()) ? now : parsedEnd,
       userId,
       departmentId,
     });

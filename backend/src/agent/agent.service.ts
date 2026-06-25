@@ -117,7 +117,11 @@ export class AgentService {
       });
     }
 
-    if (dto.workSessionId && dto.durationSeconds) {
+    // Sadece henüz özel handler'ı olmayan event tipleri için süre güncelle
+    // BREAK_START/BREAK_END zaten yukarıda kendi handler'larında updateSessionTotals çağırır
+    // Sadece IDLE gibi diğer event'ler için buraya düşer
+    if (dto.workSessionId && dto.durationSeconds &&
+        dto.type !== ActivityEventType.BREAK_START && dto.type !== ActivityEventType.BREAK_END) {
       const statusForDuration = this.eventTypeToStatus(dto.type);
       if (statusForDuration) {
         await this.updateSessionTotals(dto.workSessionId, statusForDuration, dto.durationSeconds);

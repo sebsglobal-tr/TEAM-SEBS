@@ -51,8 +51,10 @@ export function EmployeeDashboard() {
   const [feedbackCount, setFeedbackCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [isOnBreak, setIsOnBreak] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
+  const isOnBreak = session?.isOnBreak ?? false;
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
@@ -113,7 +115,6 @@ export function EmployeeDashboard() {
     setStopLoading(true);
     try {
       await workSessionsService.stop();
-      setIsOnBreak(false);
       setElapsedSeconds(0);
       setShowEndOfDay(true);
     } finally {
@@ -182,11 +183,11 @@ export function EmployeeDashboard() {
               </div>
               <div style={{ display: 'flex', gap: '0.35rem', flexDirection: 'column' }}>
                 {!isOnBreak ? (
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.startBreak(), () => setIsOnBreak(true))} disabled={actionLoading}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.startBreak())} disabled={actionLoading}>
                     <Coffee size={12} /> Mola
                   </button>
                 ) : (
-                  <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.endBreak(), () => setIsOnBreak(false))} disabled={actionLoading}>
+                  <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.endBreak())} disabled={actionLoading}>
                     Moladan Dön
                   </button>
                 )}

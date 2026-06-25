@@ -10,7 +10,9 @@ export function EmployeeProfile() {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    api.get('/reports/stats/my').then(setStats).catch(() => {});
+    api.get('/reports/stats/my')
+      .then((res) => setStats(res.data ?? res))
+      .catch((err) => console.error('Rapor istatistikleri yüklenemedi:', err));
   }, []);
 
   if (!user) return <div className="loading-spinner">Yükleniyor...</div>;

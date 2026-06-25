@@ -15,7 +15,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     try {
       await this.$connect();
     } catch (error) {
-      console.error('Prisma bağlantı hatası (onModuleInit):', (error as Error).message);
+      console.error('Prisma bağlantı hatası:', (error as Error).message);
+      // Production'da hata fırlat ki uygulama başlamasın ve platform (Render) yeniden başlatsın
+      if (process.env.NODE_ENV === 'production') {
+        throw error;
+      }
     }
   }
 

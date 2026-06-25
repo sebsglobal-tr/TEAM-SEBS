@@ -45,6 +45,20 @@ export class MessagesService {
       take: 500,
     });
 
+    // Toplu kullanıcı sorgusu: tüm unique karşı taraf ID'lerini tek seferde al
+    const otherUserIds = [...new Set(
+      messages.map(m => m.senderId === userId ? m.receiverId : m.senderId)
+    )];
+
+    const otherUsers = otherUserIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: otherUserIds } },
+          select: { id: true, firstName: true, lastName: true, role: true },
+        })
+      : [];
+
+    const userMap = new Map(otherUsers.map(u => [u.id, u]));
+
     // Group by other user
     const conversationMap = new Map<string, {
       user: { id: string; firstName: string; lastName: string; role: string };
@@ -58,12 +72,8 @@ export class MessagesService {
       const otherId = msg.senderId === userId ? msg.receiverId : msg.senderId;
       const existing = conversationMap.get(otherId);
       if (!existing) {
-        // Get other user info
         const otherUser = msg.senderId === userId
-          ? await this.prisma.user.findUnique({
-              where: { id: msg.receiverId },
-              select: { id: true, firstName: true, lastName: true, role: true },
-            })
+          ? userMap.get(msg.receiverId) ?? null
           : msg.sender;
 
         if (!otherUser) continue;

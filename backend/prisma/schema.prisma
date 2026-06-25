@@ -578,12 +578,12 @@ model Report {
 }
 
 model ReportFile {
-  id        String   @id @default(uuid())
-  reportId  String
-  fileName  String
-  fileUrl   String
-  fileType  String
-  fileSize  Int
+  id         String   @id @default(uuid())
+  reportId   String
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int
 
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 

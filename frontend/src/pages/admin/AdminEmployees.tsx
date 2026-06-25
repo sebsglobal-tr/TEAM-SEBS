@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, UserCheck } from 'lucide-react';
+import { Search, UserCheck, AlertCircle } from 'lucide-react';
 import { usersService, type EmployeeUser } from '../../services/users.service';
 
 export function AdminEmployees() {
@@ -8,20 +8,31 @@ export function AdminEmployees() {
   const [employees, setEmployees] = useState<EmployeeUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+  const [error, setError] = useState('');
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchDebounced(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
+      setError('');
       try {
-        const data = await usersService.getEmployees({ search: search || undefined });
+        const data = await usersService.getEmployees({ search: searchDebounced || undefined });
         setEmployees(data);
       } catch (err) {
         console.error('Çalışanlar yüklenirken hata:', err);
+        setError('Çalışanlar yüklenirken bir hata oluştu.');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [searchDebounced]);
 
   if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
@@ -38,6 +49,12 @@ export function AdminEmployees() {
           <input className="form-input" style={{ paddingLeft: 32 }} placeholder="Ara..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
+
+      {error && (
+        <div className="alert-banner alert-error" style={{ marginBottom: '0.75rem' }}>
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
 
       <div className="table-responsive">
         <table className="table">

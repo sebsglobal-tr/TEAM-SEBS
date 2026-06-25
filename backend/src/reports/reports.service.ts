@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -11,6 +12,8 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { IStorageProvider } from '../files/storage/storage.interface';
+import { STORAGE_PROVIDER } from '../files/files.module';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateReportDto } from './dto/create-report.dto';
 
@@ -22,7 +25,10 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(STORAGE_PROVIDER) private storage: IStorageProvider,
+  ) {}
 
   // ─── CRUD ───────────────────────────────────────────────────────────
 
@@ -158,12 +164,14 @@ export class ReportsService {
       throw new ForbiddenException('Bu rapora dosya yükleme yetkiniz yok');
     }
 
-    // For now, store file info in DB (actual file storage via existing files module is separate)
+    // Gerçek dosya depolama
+    const { path } = await this.storage.upload(file, `reports/${reportId}`);
+
     const reportFile = await this.prisma.reportFile.create({
       data: {
         reportId,
         fileName: this.sanitizeFilename(file.originalname),
-        fileUrl: `/api/reports/${reportId}/files/`, // placeholder
+        fileUrl: path, // storage path — download() ile oku
         fileType: file.mimetype,
         fileSize: file.size,
       },
@@ -193,7 +201,9 @@ export class ReportsService {
     });
     if (!reportFile) throw new NotFoundException('Dosya bulunamadı');
 
-    return reportFile;
+    // Dosyayı depodan oku
+    const buffer = await this.storage.download(reportFile.fileUrl);
+    return { reportFile, buffer };
   }
 
   // ─── Geri Bildirim ──────────────────────────────────────────────────

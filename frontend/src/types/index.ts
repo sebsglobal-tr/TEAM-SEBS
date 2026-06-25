@@ -152,6 +152,7 @@ export interface WorkSessionToday {
     offline: number;
   };
   activeSession?: WorkSession;
+  isOnBreak?: boolean;
 }
 
 export interface WorkSession {

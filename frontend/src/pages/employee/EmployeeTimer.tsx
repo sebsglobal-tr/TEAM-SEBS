@@ -22,8 +22,10 @@ export function EmployeeTimer() {
   const [session, setSession] = useState<WorkSessionToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [isOnBreak, setIsOnBreak] = useState(false);
   const [displaySeconds, setDisplaySeconds] = useState(0);
+
+  // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
+  const isOnBreak = session?.isOnBreak ?? false;
 
   const displayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -195,7 +197,7 @@ export function EmployeeTimer() {
                   <button
                     className="btn btn-secondary"
                     style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                    onClick={() => handleAction(() => workSessionsService.startBreak(), () => setIsOnBreak(true))}
+                    onClick={() => handleAction(() => workSessionsService.startBreak())}
                     disabled={actionLoading}
                   >
                     <Coffee size={20} /> Mola Ver
@@ -213,7 +215,7 @@ export function EmployeeTimer() {
                 <button
                   className="btn btn-primary"
                   style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                  onClick={() => handleAction(() => workSessionsService.endBreak(), () => setIsOnBreak(false))}
+                  onClick={() => handleAction(() => workSessionsService.endBreak())}
                   disabled={actionLoading}
                 >
                   <RotateCcw size={20} /> Moladan Dön
@@ -223,7 +225,6 @@ export function EmployeeTimer() {
                 className="btn btn-danger"
                 style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
                 onClick={() => handleAction(() => workSessionsService.stop(), () => {
-                  setIsOnBreak(false);
                   setDisplaySeconds(0);
                   setShowEndOfDay(true);
                 })}

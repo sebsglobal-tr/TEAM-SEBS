@@ -45,13 +45,16 @@ export function EmployeeHistory() {
       // Load past work sessions
       const today = new Date();
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const sessions = await api.get(`/work-sessions/user/${user?.id}`, {
+      const sessionRes = await api.get(`/work-sessions/user/${user?.id}`, {
         params: {
           startDate: thirtyDaysAgo.toISOString(),
           endDate: today.toISOString(),
         },
       });
-      setPastSessions(Array.isArray(sessions.data) ? sessions.data : []);
+      // Yanıt ya direkt array ya da { data: [] } formatında olabilir
+      const raw = sessionRes.data;
+      const sessionList = Array.isArray(raw) ? raw : raw?.data ?? [];
+      setPastSessions(Array.isArray(sessionList) ? sessionList : []);
     } catch (err) {
       console.error('Geçmiş verisi yüklenirken hata:', err);
     } finally {

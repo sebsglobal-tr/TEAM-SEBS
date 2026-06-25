@@ -14,7 +14,7 @@ export const tasksService = {
 
   /** Admin bulk creates multiple tasks at once */
   createBulk: (tasks: Array<Record<string, unknown>>) =>
-    api.post('/tasks/bulk', tasks).then((r) => r.data),
+    api.post('/tasks/bulk', { tasks }).then((r) => r.data),
 
   update: (id: string, data: Record<string, unknown>) =>
     api.patch<Task>(`/tasks/${id}`, data).then((r) => r.data),

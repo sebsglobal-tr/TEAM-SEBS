@@ -1,17 +1,22 @@
 import { useEffect, useState } from 'react';
-import { UserCog } from 'lucide-react';
+import { UserCog, AlertCircle } from 'lucide-react';
 import { usersService } from '../../services/users.service';
 
 export function AdminManagers() {
   const [managers, setManagers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     usersService.getManagers()
       .then((data) => {
         setManagers(Array.isArray(data) ? data : []);
+        setError('');
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error('Yöneticiler yüklenirken hata:', err);
+        setError('Yöneticiler yüklenirken bir hata oluştu.');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -24,12 +29,18 @@ export function AdminManagers() {
         <p className="page-subtitle">Sistemdeki tüm yönetici hesapları</p>
       </div>
 
-      {managers.length === 0 ? (
+      {error && (
+        <div className="alert-banner alert-error" style={{ marginBottom: '0.75rem' }}>
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+
+      {managers.length === 0 && !error ? (
         <div className="empty-state">
           <div className="empty-state-icon"><UserCog size={48} /></div>
           <div className="empty-state-text">Henüz yönetici bulunmuyor.</div>
         </div>
-      ) : (
+      ) : managers.length > 0 ? (
         <div className="grid-3">
           {managers.map((m) => (
             <div className="card" key={m.id}>
@@ -56,7 +67,7 @@ export function AdminManagers() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

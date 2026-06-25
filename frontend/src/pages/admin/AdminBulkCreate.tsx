@@ -59,6 +59,7 @@ export function AdminBulkCreate() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; count: number; message: string } | null>(null);
   const [taskErrors, setTaskErrors] = useState<Record<string, string[]>>({});
+  const [loadError, setLoadError] = useState('');
 
   const hasValidTasks = tasks.some((t) => t.title.trim().length > 0);
 
@@ -68,8 +69,12 @@ export function AdminBulkCreate() {
         const all = Array.isArray(data) ? data : [];
         setManagers(all.filter((u: any) => u.role === 'MANAGER'));
         setEmployees(all.filter((u: any) => u.role === 'EMPLOYEE'));
+        setLoadError('');
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error('Kullanıcılar yüklenirken hata:', err);
+        setLoadError('Kullanıcı listesi yüklenemedi. Lütfen sayfayı yenileyin.');
+      });
   }, []);
 
   const addTask = () => setTasks((prev) => [...prev, emptyTask()]);
@@ -207,6 +212,12 @@ export function AdminBulkCreate() {
           <ArrowLeft size={16} /> Görevlere Dön
         </button>
       </div>
+
+      {loadError && (
+        <div className="alert-banner alert-error">
+          <AlertCircle size={20} /> {loadError}
+        </div>
+      )}
 
       {result && (
         <div className={`alert-banner ${result.success ? 'alert-success' : 'alert-error'}`}>

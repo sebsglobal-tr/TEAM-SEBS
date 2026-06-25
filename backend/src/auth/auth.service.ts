@@ -86,7 +86,7 @@ export class AuthService {
   }
 
   async logout(userId: string, refreshToken?: string, ipAddress?: string, userAgent?: string) {
-    if (refreshToken) {
+    if (refreshToken?.trim()) {
       await this.prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
     } else {
       await this.prisma.refreshToken.deleteMany({ where: { userId } });

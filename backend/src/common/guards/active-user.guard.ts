@@ -13,7 +13,11 @@ export class ActiveUserGuard implements CanActivate {
   constructor(private prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const { user } = context.switchToHttp().getRequest<{ user: JwtPayload }>();
+    const request = context.switchToHttp().getRequest<{ user?: JwtPayload }>();
+    if (!request.user) {
+      throw new ForbiddenException('Oturum bilgisi bulunamadı. Lütfen tekrar giriş yapın.');
+    }
+    const { user } = request;
 
     const dbUser = await this.prisma.user.findUnique({
       where: { id: user.sub },

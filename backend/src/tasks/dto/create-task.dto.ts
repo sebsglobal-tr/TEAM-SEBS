@@ -56,6 +56,14 @@ export class CreateBulkTaskDto {
   estimatedMinutes?: number;
 }
 
+export class CreateBulkTasksDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBulkTaskDto)
+  @ArrayMinSize(1)
+  tasks!: CreateBulkTaskDto[];
+}
+
 export class AssignTaskDto {
   @IsUUID()
   assigneeId!: string;

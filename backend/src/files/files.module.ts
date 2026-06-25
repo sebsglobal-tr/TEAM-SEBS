@@ -26,6 +26,6 @@ export const STORAGE_PROVIDER = 'STORAGE_PROVIDER';
       inject: [ConfigService],
     },
   ],
-  exports: [FilesService],
+  exports: [FilesService, STORAGE_PROVIDER],
 })
 export class FilesModule {}

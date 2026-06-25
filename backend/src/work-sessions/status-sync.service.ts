@@ -84,21 +84,25 @@ export class StatusSyncService {
           status: WorkSessionStatus.PAUSED,
           updatedAt: { lt: threshold },
         },
+        take: 100,
       });
 
-      for (const session of stalePaused) {
-        await this.prisma.workSession.update({
-          where: { id: session.id },
-          data: {
-            status: WorkSessionStatus.ENDED,
-            endedAt: session.pausedAt ?? new Date(),
-          },
-        });
-      }
+      if (stalePaused.length === 0) return;
 
-      if (stalePaused.length > 0) {
-        this.logger.debug(`${stalePaused.length} eski duraklatılmış oturum kapatıldı`);
-      }
+      // Race condition önlemi: updateMany ile status kontrolü yap
+      // Kullanıcı bu arada resume yapmışsa status PAUSED değildir, güncelleme olmaz
+      const result = await this.prisma.workSession.updateMany({
+        where: {
+          id: { in: stalePaused.map(s => s.id) },
+          status: WorkSessionStatus.PAUSED, // sadece hala PAUSED olanları güncelle
+        },
+        data: {
+          status: WorkSessionStatus.ENDED,
+          endedAt: threshold,
+        },
+      });
+
+      this.logger.debug(`${result.count} eski duraklatılmış oturum kapatıldı`);
     } catch (error) {
       this.logger.error(`cleanupStalePausedSessions hatası: ${(error as Error).message}`);
     }
