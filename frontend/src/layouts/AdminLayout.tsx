@@ -17,6 +17,7 @@ import {
   Bell,
   Shield,
   CalendarDays,
+  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -54,6 +55,7 @@ const adminNav = [
     section: 'İletişim',
     items: [
       { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
+      { to: '/announcements', icon: Megaphone, label: 'Duyurular' },
     ],
   },
   {

@@ -208,6 +208,8 @@ model User {
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
 
+  announcements Announcement[] @relation("AnnouncementAuthor")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -642,4 +644,21 @@ model Message {
   @@index([receiverId])
   @@index([receiverId, isRead])
   @@map("messages")
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  priority  String   @default("NORMAL")
+  authorId  String
+  targetRole String? @default("ALL") // ALL, MANAGER, EMPLOYEE
+
+  author User @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("announcements")
 }

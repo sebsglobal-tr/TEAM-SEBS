@@ -14,6 +14,7 @@ import {
   Bell,
   Briefcase,
   CheckSquare,
+  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -43,6 +44,7 @@ const managerNav = [
     items: [
       { to: '/manager/timer', icon: Timer, label: 'Sayaç' },
       { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
+      { to: '/announcements', icon: Megaphone, label: 'Duyurular' },
       { to: '/manager/profile', icon: UserCircle, label: 'Profil' },
     ],
   },

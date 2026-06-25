@@ -15,6 +15,7 @@ import {
   Clock,
   User,
   MessageCircle,
+  Megaphone,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -49,6 +50,7 @@ const employeeNav = [
     section: 'Hesabım',
     items: [
       { to: '/messages', icon: MessageSquare, label: 'Mesajlar' },
+      { to: '/announcements', icon: Megaphone, label: 'Duyurular' },
       { to: '/employee/profile', icon: UserCircle, label: 'Profil' },
     ],
   },

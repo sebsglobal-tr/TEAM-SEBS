@@ -15,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AuditModule } from './audit/audit.module';
 import { SettingsModule } from './settings/settings.module';
 import { MessagesModule } from './messages/messages.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { MessagesModule } from './messages/messages.module';
     AuditModule,
     SettingsModule,
     MessagesModule,
+    AnnouncementsModule,
   ],
   providers: [
     {
