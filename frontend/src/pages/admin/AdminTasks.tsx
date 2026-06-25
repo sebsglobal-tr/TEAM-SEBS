@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ListTodo, Plus, Users, AlertCircle, Clock, CheckCircle2,
-  UserCheck, Ban, Search, FileText,
+  UserCheck, Ban, Search, FileText, Download,
 } from 'lucide-react';
 import { tasksService } from '../../services/tasks.service';
 import { formatDuration, formatDate, formatDateTime } from '../../utils/format';
+import { exportToCSV } from '../../utils/export';
 import type { Task } from '../../types';
 
 type TabKey = 'all' | 'pool' | 'assigned-to-managers' | 'distributed' | 'completed' | 'overdue' | 'blocked';
@@ -105,9 +106,24 @@ export function AdminTasks() {
           <h1 className="page-title">Görev Yönetimi</h1>
           <p className="page-subtitle">Tüm görevleri görüntüleyin, havuzdan yöneticilere atayın</p>
         </div>
-        <button className="btn btn-primary" onClick={() => navigate('/admin/tasks/bulk-create')}>
-          <Plus size={16} /> Toplu Görev Ekle
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={() => {
+            const exportData = filtered.map(t => ({
+              Başlık: t.title,
+              'Öncelik': t.priority,
+              Durum: t.status,
+              'Atanan': t.assignedTo ? `${t.assignedTo.firstName} ${t.assignedTo.lastName}` : '-',
+              'Teslim Tarihi': t.dueDate ? formatDate(t.dueDate) : '-',
+              'İlerleme %': t.completionPercent,
+            }));
+            exportToCSV(exportData, `gorevler_${new Date().toISOString().split('T')[0]}`);
+          }}>
+            <Download size={14} /> CSV
+          </button>
+          <button className="btn btn-primary" onClick={() => navigate('/admin/tasks/bulk-create')}>
+            <Plus size={16} /> Toplu Görev Ekle
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

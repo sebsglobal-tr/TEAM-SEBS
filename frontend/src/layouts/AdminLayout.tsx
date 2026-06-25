@@ -21,6 +21,7 @@ import {
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { notificationsService } from '../services/notifications.service';
+import { GlobalSearch } from '../components/GlobalSearch';
 import './layout.css';
 
 const adminNav = [
@@ -165,6 +166,9 @@ export function AdminLayout() {
               <Menu size={20} />
             </button>
             <div className="topbar-title">{getPageTitle()}</div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '0 1rem' }}>
+            <GlobalSearch />
           </div>
           <div className="topbar-actions">
             <button className="icon-btn notification-btn" onClick={() => navigate('/notifications')} title="Bildirimler">
