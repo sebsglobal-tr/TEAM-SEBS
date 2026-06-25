@@ -45,6 +45,7 @@ const adminNav = [
     section: 'Yönetim',
     items: [
       { to: '/admin/tasks', icon: CheckSquare, label: 'Görevler' },
+      { to: '/admin/tasks/kanban', icon: LayoutDashboard, label: 'Kanban Board' },
       { to: '/admin/reports', icon: BarChart3, label: 'Raporlar' },
       { to: '/admin/reports/calendar', icon: CalendarDays, label: 'Rapor Takvimi' },
       { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },

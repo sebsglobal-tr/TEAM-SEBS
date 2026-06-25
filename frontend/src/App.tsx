@@ -97,6 +97,7 @@ function AppRoutes() {
         <Route path="employees" element={<AdminEmployees />} />
         <Route path="assignments" element={<AdminAssignments />} />
         <Route path="tasks" element={<AdminTasks />} />
+        <Route path="tasks/kanban" element={<AdminKanban />} />
         <Route path="tasks/bulk-create" element={<AdminBulkCreate />} />
         <Route path="tasks/:id" element={<AdminTaskDetail />} />
         <Route path="reports" element={<AdminReports />} />
@@ -180,6 +181,7 @@ import { AdminManagers } from './pages/admin/AdminManagers';
 import { AdminEmployees } from './pages/admin/AdminEmployees';
 import { AdminAssignments } from './pages/admin/AdminAssignments';
 import { AdminTasks } from './pages/admin/AdminTasks';
+import { AdminKanban } from './pages/admin/AdminKanban';
 import { AdminBulkCreate } from './pages/admin/AdminBulkCreate';
 import { AdminTaskDetail } from './pages/admin/AdminTaskDetail';
 import { AdminReports } from './pages/admin/AdminReports';
