@@ -16,6 +16,7 @@ import { AuditModule } from './audit/audit.module';
 import { SettingsModule } from './settings/settings.module';
 import { MessagesModule } from './messages/messages.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { LeavesModule } from './leaves/leaves.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
     SettingsModule,
     MessagesModule,
     AnnouncementsModule,
+    LeavesModule,
   ],
   providers: [
     {

@@ -105,6 +105,8 @@ function AppRoutes() {
         <Route path="files" element={<AdminFiles />} />
         <Route path="work-sessions" element={<AdminWorkSessions />} />
         <Route path="departments" element={<AdminDepartments />} />
+        <Route path="leaves" element={<LeaveRequestsPage />} />
+        <Route path="performance" element={<AdminPerformance />} />
         <Route path="audit-log" element={<AdminAuditLog />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
@@ -128,6 +130,7 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<ManagerTaskDetail />} />
         <Route path="reports" element={<ManagerReports />} />
         <Route path="files" element={<ManagerFiles />} />
+        <Route path="leaves" element={<LeaveRequestsPage />} />
         <Route path="work-sessions" element={<ManagerWorkSessions />} />
         <Route path="timer" element={<ManagerTimer />} />
         <Route path="tasks/:id" element={<ManagerTaskDetail />} />
@@ -154,6 +157,7 @@ function AppRoutes() {
         <Route path="reports" element={<EmployeeReports />} />
         <Route path="reports/:id" element={<EmployeeReportDetail />} />
         <Route path="files" element={<EmployeeFiles />} />
+        <Route path="leaves" element={<LeaveRequestsPage />} />
         <Route path="feedbacks" element={<EmployeeFeedbacks />} />
         <Route path="history" element={<EmployeeHistory />} />
         <Route path="profile" element={<EmployeeProfile />} />
@@ -191,6 +195,8 @@ import { AdminWorkSessions } from './pages/admin/AdminWorkSessions';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { DepartmentsPage as AdminDepartments } from './pages/DepartmentsPage';
 import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';
+import { LeaveRequestsPage } from './pages/LeaveRequestsPage';
+import { AdminPerformance } from './pages/admin/AdminPerformance';
 
 // Manager Pages
 import { ManagerDashboard as ManagerDashboardPage } from './pages/manager/ManagerDashboard';

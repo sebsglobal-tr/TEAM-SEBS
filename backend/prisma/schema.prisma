@@ -132,6 +132,29 @@ enum ReportType {
   OTHER
 }
 
+enum LeaveType {
+  ANNUAL
+  SICK
+  PERSONAL
+  UNPAID
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PerformanceMetric {
+  TASK_COMPLETION
+  ON_TIME_RATE
+  ACTIVE_TIME
+  BREAK_RATE
+  REPORT_SUBMISSION
+}
+
 enum AuditAction {
   LOGIN
   LOGOUT
@@ -208,7 +231,10 @@ model User {
   sentMessages     Message[] @relation("SentMessages")
   receivedMessages Message[] @relation("ReceivedMessages")
 
-  announcements Announcement[] @relation("AnnouncementAuthor")
+  announcements  Announcement[]  @relation("AnnouncementAuthor")
+  leaveRequests  LeaveRequest[]
+  approvedLeaves LeaveRequest[]  @relation("LeaveApprover")
+  performanceScores PerformanceScore[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -661,4 +687,45 @@ model Announcement {
 
   @@index([createdAt])
   @@map("announcements")
+}
+
+model LeaveRequest {
+  id             String     @id @default(uuid())
+  userId         String
+  leaveType      LeaveType  @default(ANNUAL)
+  startDate      DateTime
+  endDate        DateTime
+  reason         String?
+  status         LeaveStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectionReason String?
+
+  user      User  @relation(fields: [userId], references: [id])
+  approvedBy User? @relation("LeaveApprover", fields: [approvedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate])
+  @@map("leave_requests")
+}
+
+model PerformanceScore {
+  id        String    @id @default(uuid())
+  userId    String
+  metric    PerformanceMetric
+  score     Float
+  periodStart DateTime
+  periodEnd   DateTime
+  metadata  Json?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, periodStart, periodEnd])
+  @@map("performance_scores")
 }

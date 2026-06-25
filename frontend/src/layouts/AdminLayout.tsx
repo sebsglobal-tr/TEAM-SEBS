@@ -18,6 +18,8 @@ import {
   Shield,
   CalendarDays,
   Megaphone,
+  Calendar,
+  TrendingUp,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -50,6 +52,8 @@ const adminNav = [
       { to: '/admin/reports/calendar', icon: CalendarDays, label: 'Rapor Takvimi' },
       { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
       { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
+      { to: '/admin/leaves', icon: Calendar, label: 'İzin Talepleri' },
+      { to: '/admin/performance', icon: BarChart3, label: 'Performans' },
     ],
   },
   {

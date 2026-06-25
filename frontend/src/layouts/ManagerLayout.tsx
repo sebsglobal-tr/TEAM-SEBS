@@ -15,6 +15,7 @@ import {
   Briefcase,
   CheckSquare,
   Megaphone,
+  Calendar,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -36,6 +37,7 @@ const managerNav = [
       { to: '/manager/tasks', icon: CheckSquare, label: 'Görevler' },
       { to: '/manager/reports', icon: BarChart3, label: 'Raporlar' },
       { to: '/manager/files', icon: FolderOpen, label: 'Dosyalar' },
+      { to: '/manager/leaves', icon: Calendar, label: 'İzin Talepleri' },
       { to: '/manager/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
     ],
   },
