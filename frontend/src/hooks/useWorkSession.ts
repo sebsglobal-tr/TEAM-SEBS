@@ -22,6 +22,8 @@ export function useWorkSession() {
   const [stopLoading, setStopLoading] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // useRef ile error callback stabil kalır
+  const showErrorRef = useRef<(msg: string) => void>(() => {});
 
   // ─── Backend'den session verilerini çek ───
 
@@ -30,7 +32,7 @@ export function useWorkSession() {
       const s = await workSessionsService.getToday();
       setSession(s);
     } catch (err) {
-      console.error('Session yüklenirken hata:', err);
+      console.error('[SESSION] load error:', err);
     } finally {
       setLoading(false);
     }
@@ -43,6 +45,8 @@ export function useWorkSession() {
     setTimeout(() => setError(''), 5000);
   }, []);
 
+  showErrorRef.current = showError;
+
   // ─── Yardımcı: hatadan okunabilir mesaj çıkar ───
 
   const extractError = useCallback((err: any, fallback: string): string => {
@@ -51,6 +55,7 @@ export function useWorkSession() {
       return typeof msg === 'string' ? msg : Array.isArray(msg) ? msg[0] : fallback;
     }
     if (err?.message === 'Network Error') return 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.';
+    if (err?.code === 'ECONNABORTED') return 'Sunucu yanıt vermiyor. Lütfen tekrar deneyin.';
     return fallback;
   }, []);
 
@@ -113,48 +118,49 @@ export function useWorkSession() {
 
   // ─── Ana aksiyonlar ───
 
-  const handleAction = useCallback(async (
-    action: () => Promise<unknown>,
-    onSuccess?: () => void,
-  ) => {
-    setActionLoading(true);
-    setError('');
-    try {
-      await action();
-      onSuccess?.();
-      await loadSession();
-    } catch (err: any) {
-      console.error('İşlem hatası:', err);
-      showError(extractError(err, 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.'));
-    } finally {
-      setActionLoading(false);
-    }
-  }, [loadSession, showError, extractError]);
-
-  const start = useCallback(() => {
-    console.log('[WORK_TIMER] Start button CLICKED', {
+  /**
+   * 📌 MERKEZİ BAŞLATMA FONKSİYONU
+   * Hem EmployeeDashboard hem EmployeeTimer bu fonksiyonu kullanır.
+   *
+   * Akış:
+   * 1. Buton loading'e geçer
+   * 2. Doğrudan API isteği atılır (axios interceptor bypass edilmez, timeout eklenir)
+   * 3. Başarılı → session yeniden yüklenir, sayaç başlar
+   * 4. Başarısız → hata mesajı gösterilir
+   */
+  const start = useCallback(async () => {
+    console.log('[WORK_TIMER] 1️⃣ Start button CLICKED', {
       page: window.location.pathname,
       timestamp: new Date().toISOString(),
       hasActiveSession: !!activeSession,
-      handleActionType: typeof handleAction,
-      apiType: typeof workSessionsService.start,
     });
 
-    // handleAction undefined kontrolü
-    if (typeof handleAction !== 'function') {
-      console.error('[WORK_TIMER] CRITICAL: handleAction is NOT a function!');
-      setError('Sistem hatası: handleAction tanımlı değil. Sayfayı yenileyin.');
+    if (activeSession) {
+      console.warn('[WORK_TIMER] Active session already exists, skipping');
+      showErrorRef.current('Zaten aktif bir çalışma oturumunuz bulunuyor.');
       return;
     }
 
+    setActionLoading(true);
+    setError('');
+
     try {
-      const promise = handleAction(() => workSessionsService.start());
-      console.log('[WORK_TIMER] handleAction returned:', promise ? 'Promise' : 'undefined', 'type:', typeof promise);
-    } catch (err) {
-      console.error('[WORK_TIMER] CRITICAL: handleAction threw synchronously:', err);
-      setError('Sistem hatası: ' + (err instanceof Error ? err.message : String(err)));
+      console.log('[WORK_TIMER] 2️⃣ Calling API: POST /work-sessions/start');
+      const result = await workSessionsService.start();
+      console.log('[WORK_TIMER] 3️⃣ API RESPONSE:', result);
+
+      // Session'ı yeniden yükle
+      await loadSession();
+      console.log('[WORK_TIMER] 4️⃣ Session reloaded successfully');
+    } catch (err: any) {
+      console.error('[WORK_TIMER] ❌ Start FAILED:', err?.message, err?.response?.status, err?.response?.data);
+      const msg = extractError(err, 'Çalışma başlatılamadı. Lütfen tekrar deneyin.');
+      showErrorRef.current(msg);
+    } finally {
+      setActionLoading(false);
+      console.log('[WORK_TIMER] 5️⃣ handleAction FINALLY completed');
     }
-  }, [handleAction, activeSession, setError]);
+  }, [activeSession, loadSession, extractError]);
 
   const stop = useCallback(async () => {
     setStopLoading(true);
@@ -171,9 +177,19 @@ export function useWorkSession() {
     }
   }, [loadSession, showError, extractError]);
 
-  const pause = useCallback(() =>
-    handleAction(() => workSessionsService.pause()),
-  [handleAction]);
+  const pause = useCallback(async () => {
+    setActionLoading(true);
+    setError('');
+    try {
+      await workSessionsService.pause();
+      await loadSession();
+    } catch (err: any) {
+      console.error('Duraklatma hatası:', err);
+      showError(extractError(err, 'Duraklatma sırasında hata oluştu.'));
+    } finally {
+      setActionLoading(false);
+    }
+  }, [loadSession, showError, extractError]);
 
   const resume = useCallback(async () => {
     setActionLoading(true);
@@ -189,13 +205,33 @@ export function useWorkSession() {
     }
   }, [loadSession]);
 
-  const startBreak = useCallback(() =>
-    handleAction(() => workSessionsService.startBreak()),
-  [handleAction]);
+  const startBreak = useCallback(async () => {
+    setActionLoading(true);
+    setError('');
+    try {
+      await workSessionsService.startBreak();
+      await loadSession();
+    } catch (err: any) {
+      console.error('Mola başlatma hatası:', err);
+      showError(extractError(err, 'Mola başlatılamadı.'));
+    } finally {
+      setActionLoading(false);
+    }
+  }, [loadSession, showError, extractError]);
 
-  const endBreak = useCallback(() =>
-    handleAction(() => workSessionsService.endBreak()),
-  [handleAction]);
+  const endBreak = useCallback(async () => {
+    setActionLoading(true);
+    setError('');
+    try {
+      await workSessionsService.endBreak();
+      await loadSession();
+    } catch (err: any) {
+      console.error('Mola bitirme hatası:', err);
+      showError(extractError(err, 'Mola bitirilemedi.'));
+    } finally {
+      setActionLoading(false);
+    }
+  }, [loadSession, showError, extractError]);
 
   return {
     // Veri

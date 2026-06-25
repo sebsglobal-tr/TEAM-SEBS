@@ -5,6 +5,8 @@ const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  timeout: 15000, // 15sn timeout — hiçbir request sonsuza kadar pending kalmaz
+  timeoutErrorMessage: 'Sunucu yanıt vermiyor. Lütfen tekrar deneyin.',
 });
 
 // ──────────────────────────────────────────────
@@ -50,7 +52,7 @@ async function ensureValidToken(): Promise<void> {
       if (!refreshToken) throw new Error('Refresh token yok');
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken }, { timeout: 8000 });
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('refreshToken', data.refreshToken);
       } catch {
