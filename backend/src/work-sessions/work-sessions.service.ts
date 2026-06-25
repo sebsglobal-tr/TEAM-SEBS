@@ -56,12 +56,31 @@ export class WorkSessionsService {
    * Eğer zaten ACTIVE bir oturum varsa onu döndürür (hata fırlatmaz).
    */
   async start(userId: string) {
-    // 1) Zaten ACTIVE oturum → kullanıcıya hata yerine mevcut oturumu döndür
+    // 1) Zaten ACTIVE oturum → kontrol et
     const active = await this.prisma.workSession.findFirst({
       where: { userId, status: WorkSessionStatus.ACTIVE },
+      orderBy: { updatedAt: 'desc' },
     });
     if (active) {
-      return active;
+      // 4 saatten eski aktif oturum → terk edilmiş say, kapat ve yeni oluştur
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      if (active.updatedAt < fourHoursAgo) {
+        const now = new Date();
+        // Eski oturumu kapat
+        const baseTime = (active.lastResumedAt ?? active.startedAt).getTime();
+        const elapsedSinceResume = Math.max(0, Math.floor((now.getTime() - baseTime) / 1000));
+        await this.prisma.workSession.update({
+          where: { id: active.id },
+          data: {
+            status: WorkSessionStatus.ENDED,
+            endedAt: now,
+            totalActiveSeconds: active.totalActiveSeconds + elapsedSinceResume,
+          },
+        });
+        // Yeni oturum oluştur (aşağıdaki kod devam eder)
+      } else {
+        return active; // 4 saatten yeni, hala geçerli
+      }
     }
 
     // 2) PAUSED / AUTO_PAUSED oturum → resume et
@@ -322,35 +341,40 @@ export class WorkSessionsService {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
+    // Bugünün oturumları (günlük toplam süre için)
     const sessions = await this.prisma.workSession.findMany({
       where: { userId, startedAt: { gte: startOfDay } },
       orderBy: { startedAt: 'desc' },
     });
 
-    // Aktif oturum var mı?
-    const activeSession = sessions.find(
-      (s) => s.status === WorkSessionStatus.ACTIVE,
-    );
-
-    // Aktif oturumun gerçek süresini hesapla (timestamp-based)
-    const totals = sessions.reduce(
-      (acc, s) => {
-        let activeSecs = s.totalActiveSeconds;
-        // Eğer bu oturum şu an ACTIVE ise, son resumed/started zamanına göre ekleme yap
-        if (s.status === WorkSessionStatus.ACTIVE) {
-          const baseTime = (s.lastResumedAt ?? s.startedAt).getTime();
-          activeSecs += Math.max(0, Math.floor((Date.now() - baseTime) / 1000));
-        }
-        return {
-          active: acc.active + activeSecs,
-          idle: acc.idle + s.totalIdleSeconds,
-          break: acc.break + s.totalBreakSeconds,
-          locked: acc.locked + s.totalLockedSeconds,
-          offline: acc.offline + s.totalOfflineSeconds,
-        };
+    // Aktif oturum: TARİH FİLTRESİZ — dün/önceki gün başlamış da olabilir
+    const activeSession = await this.prisma.workSession.findFirst({
+      where: {
+        userId,
+        status: WorkSessionStatus.ACTIVE,
       },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // Günlük toplam süre (bugünün oturumları üzerinden)
+    const totals = sessions.reduce(
+      (acc, s) => ({
+        active: acc.active + s.totalActiveSeconds,
+        idle: acc.idle + s.totalIdleSeconds,
+        break: acc.break + s.totalBreakSeconds,
+        locked: acc.locked + s.totalLockedSeconds,
+        offline: acc.offline + s.totalOfflineSeconds,
+      }),
       { active: 0, idle: 0, break: 0, locked: 0, offline: 0 },
     );
+
+    // Eğer aktif oturum BUGÜN başlamadıysa (dünden kalmış), onun süresini de ekle
+    if (activeSession && activeSession.startedAt < startOfDay) {
+      const baseTime = (activeSession.lastResumedAt ?? activeSession.startedAt).getTime();
+      const activeSecs = activeSession.totalActiveSeconds +
+        Math.max(0, Math.floor((Date.now() - baseTime) / 1000));
+      totals.active += activeSecs;
+    }
 
     // Aktif mola var mı?
     const onBreak = activeSession
