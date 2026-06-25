@@ -20,6 +20,8 @@ import { LeavesModule } from './leaves/leaves.module';
 import { GroupsModule } from './groups/groups.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { ShiftsModule } from './shifts/shifts.module';
+import { ProjectsModule } from './projects/projects.module';
+import { HolidaysModule } from './holidays/holidays.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { ShiftsModule } from './shifts/shifts.module';
     GroupsModule,
     WebhooksModule,
     ShiftsModule,
+    ProjectsModule,
+    HolidaysModule,
   ],
   providers: [
     {

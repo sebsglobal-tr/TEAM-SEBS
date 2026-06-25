@@ -740,6 +740,54 @@ export class TasksService {
     }
   }
 
+  // ─── Tekrarlayan görev oluşturma ───
+
+  async generateRecurringTasks() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        recurrenceRule: { not: null },
+        OR: [
+          { recurrenceEndDate: null },
+          { recurrenceEndDate: { gte: today } },
+        ],
+        status: { in: [TaskStatus.MANAGER_APPROVED, TaskStatus.ADMIN_APPROVED, TaskStatus.CANCELLED] },
+      },
+    });
+
+    let created = 0;
+    for (const task of tasks) {
+      if (!task.recurrenceRule) continue;
+
+      const lastCreated = await this.prisma.task.findFirst({
+        where: { parentTaskId: task.id, title: { contains: task.title } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const shouldCreate = !lastCreated ||
+        lastCreated.createdAt < new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+      if (!shouldCreate) continue;
+
+      await this.prisma.task.create({
+        data: {
+          title: task.title,
+          description: task.description,
+          taskType: task.taskType,
+          priority: task.priority,
+          status: TaskStatus.POOL,
+          createdById: task.createdById,
+          parentTaskId: task.id,
+          estimatedMinutes: task.estimatedMinutes,
+        },
+      });
+      created++;
+    }
+    return { message: `${created} tekrarlayan görev oluşturuldu`, count: created };
+  }
+
   private async logStatus(taskId: string, oldStatus: string | null, newStatus: string, changedById: string, note?: string) {
     await this.prisma.taskHistory.create({
       data: {

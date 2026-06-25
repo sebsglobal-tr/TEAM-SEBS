@@ -239,6 +239,9 @@ model User {
   groupChats     GroupChat[]     @relation("CreatedGroups")
   groupMembers   GroupMember[]
   groupMessages  GroupMessage[]
+  shifts         Shift[]       @relation("UserShifts")
+  projects       Project[]     @relation("CreatedProjects")
+  webhooks       Webhook[]     @relation("CreatedWebhooks")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -328,11 +331,14 @@ model Task {
   createdById       String
   responsibleManagerId String?
   parentTaskId      String?
+  projectId         String?
   departmentId      String?
   dueDate           DateTime?
   estimatedMinutes  Int?
   actualMinutes     Int          @default(0)
   completionPercent Int          @default(0)
+  recurrenceRule    String?
+  recurrenceEndDate DateTime?
   completedAt       DateTime?
   approvedByManagerAt DateTime?
   approvedByAdminAt   DateTime?
@@ -342,6 +348,7 @@ model Task {
   responsibleManager User? @relation("ResponsibleManager", fields: [responsibleManagerId], references: [id])
   parentTask   Task?  @relation("SubTasks", fields: [parentTaskId], references: [id])
   subTasks     Task[] @relation("SubTasks")
+  project      Project? @relation(fields: [projectId], references: [id])
   department   Department? @relation(fields: [departmentId], references: [id])
 
   comments    TaskComment[]
@@ -779,6 +786,8 @@ model Webhook {
   createdById String
   createdAt   DateTime @default(now())
 
+  createdBy User @relation("CreatedWebhooks", fields: [createdById], references: [id])
+
   @@map("webhooks")
 }
 
@@ -797,10 +806,41 @@ model Shift {
   startTime  DateTime
   endTime    DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation("UserShifts", fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
   @@index([userId, date])
   @@map("shifts")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String   @default("#7c3aed")
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, ON_HOLD, CANCELLED
+  createdById String
+
+  createdBy User  @relation("CreatedProjects", fields: [createdById], references: [id])
+  tasks     Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@map("projects")
+}
+
+model Holiday {
+  id      String   @id @default(uuid())
+  name    String
+  date    DateTime
+  type    String   @default("PUBLIC") // PUBLIC, COMPANY, RELIGIOUS
+  isHalfDay Boolean @default(false)
+
+  @@unique([date, name])
+  @@map("holidays")
 }

@@ -22,6 +22,8 @@ import {
   TrendingUp,
   Sun,
   Moon,
+  FolderKanban,
+  CalendarCheck,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -53,6 +55,9 @@ const adminNav = [
       { to: '/admin/tasks/kanban', icon: LayoutDashboard, label: 'Kanban Board' },
       { to: '/admin/reports', icon: BarChart3, label: 'Raporlar' },
       { to: '/admin/reports/calendar', icon: CalendarDays, label: 'Rapor Takvimi' },
+      { to: '/admin/projects', icon: FolderKanban, label: 'Projeler' },
+      { to: '/admin/estimates', icon: BarChart3, label: 'Süre Karşılaştırma' },
+      { to: '/admin/holidays', icon: CalendarCheck, label: 'Tatiller' },
       { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
       { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
       { to: '/admin/work-calendar', icon: CalendarDays, label: 'Çalışma Takvimi' },

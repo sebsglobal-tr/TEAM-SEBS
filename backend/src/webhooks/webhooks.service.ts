@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
 export class WebhooksService {
+  private readonly logger = new Logger(WebhooksService.name);
   constructor(private prisma: PrismaService) {}
 
   async create(url: string, events: string[], actorId: string) {
@@ -32,7 +33,9 @@ export class WebhooksService {
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(5000),
         });
-      } catch { /* silently skip failed webhooks */ }
+      } catch (err: any) {
+        this.logger.warn(`Webhook çağrısı başarısız: ${wh.url} - ${err.message}`);
+      }
     }
   }
 }

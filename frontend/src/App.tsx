@@ -102,6 +102,9 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<AdminTaskDetail />} />
         <Route path="reports" element={<AdminReports />} />
         <Route path="reports/calendar" element={<AdminReportsCalendar />} />
+        <Route path="projects" element={<AdminProjects />} />
+        <Route path="estimates" element={<AdminEstimates />} />
+        <Route path="holidays" element={<AdminHolidays />} />
         <Route path="files" element={<AdminFiles />} />
         <Route path="work-sessions" element={<AdminWorkSessions />} />
         <Route path="work-calendar" element={<AdminWorkCalendar />} />
@@ -135,7 +138,6 @@ function AppRoutes() {
         <Route path="leaves" element={<LeaveRequestsPage />} />
         <Route path="work-sessions" element={<ManagerWorkSessions />} />
         <Route path="timer" element={<ManagerTimer />} />
-        <Route path="tasks/:id" element={<ManagerTaskDetail />} />
         <Route path="profile" element={<ManagerProfile />} />
       </Route>
 
@@ -197,6 +199,9 @@ import { AdminReportsCalendar } from './pages/admin/AdminReportsCalendar';
 import { AdminFiles } from './pages/admin/AdminFiles';
 import { AdminWorkSessions } from './pages/admin/AdminWorkSessions';
 import { AdminWorkCalendar } from './pages/admin/AdminWorkCalendar';
+import { AdminProjects } from './pages/admin/AdminProjects';
+import { AdminEstimates } from './pages/admin/AdminEstimates';
+import { AdminHolidays } from './pages/admin/AdminHolidays';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { DepartmentsPage as AdminDepartments } from './pages/DepartmentsPage';
 import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';
