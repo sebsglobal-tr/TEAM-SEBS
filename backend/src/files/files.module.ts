@@ -4,10 +4,9 @@ import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
 import { LocalStorageProvider } from './storage/local-storage.provider';
 import { SupabaseStorageProvider } from './storage/supabase-storage.provider';
+import { STORAGE_PROVIDER } from './storage/tokens';
 import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-
-export const STORAGE_PROVIDER = 'STORAGE_PROVIDER';
 
 @Module({
   imports: [AuditModule, NotificationsModule],

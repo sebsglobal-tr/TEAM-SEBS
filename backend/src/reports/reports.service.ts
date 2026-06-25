@@ -13,7 +13,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { IStorageProvider } from '../files/storage/storage.interface';
-import { STORAGE_PROVIDER } from '../files/files.module';
+import { STORAGE_PROVIDER } from '../files/storage/tokens';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateReportDto } from './dto/create-report.dto';
 

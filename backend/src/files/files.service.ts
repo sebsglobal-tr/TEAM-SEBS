@@ -11,7 +11,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { IStorageProvider } from './storage/storage.interface';
-import { STORAGE_PROVIDER } from './files.module';
+import { STORAGE_PROVIDER } from './storage/tokens';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 
 // Only truly dangerous extensions are blocked — everything else is allowed.
