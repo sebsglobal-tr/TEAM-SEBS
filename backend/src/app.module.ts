@@ -18,6 +18,8 @@ import { MessagesModule } from './messages/messages.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { LeavesModule } from './leaves/leaves.module';
 import { GroupsModule } from './groups/groups.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
+import { ShiftsModule } from './shifts/shifts.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { GroupsModule } from './groups/groups.module';
     AnnouncementsModule,
     LeavesModule,
     GroupsModule,
+    WebhooksModule,
+    ShiftsModule,
   ],
   providers: [
     {

@@ -195,6 +195,7 @@ model User {
   departmentId String?
   position     String?
   managerId    String?
+  timezone     String       @default("Europe/Istanbul")
   currentStatus EmployeeStatus @default(OFFLINE)
   lastActiveAt DateTime?
   deletedAt    DateTime?
@@ -769,4 +770,37 @@ model PerformanceScore {
 
   @@index([userId, periodStart, periodEnd])
   @@map("performance_scores")
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  url         String
+  events      String[]
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@map("webhooks")
+}
+
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  NIGHT
+  FLEXIBLE
+}
+
+model Shift {
+  id         String    @id @default(uuid())
+  userId     String
+  type       ShiftType
+  date       DateTime
+  startTime  DateTime
+  endTime    DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("shifts")
 }
