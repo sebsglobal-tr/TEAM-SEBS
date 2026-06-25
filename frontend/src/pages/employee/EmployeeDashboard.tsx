@@ -51,6 +51,7 @@ export function EmployeeDashboard() {
   const [feedbackCount, setFeedbackCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
@@ -117,6 +118,10 @@ export function EmployeeDashboard() {
       await workSessionsService.stop();
       setElapsedSeconds(0);
       setShowEndOfDay(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setActionError(typeof msg === 'string' ? msg : 'Oturum sonlandırılırken hata oluştu.');
+      setTimeout(() => setActionError(''), 5000);
     } finally {
       setStopLoading(false);
     }
@@ -124,7 +129,19 @@ export function EmployeeDashboard() {
 
   const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
     setActionLoading(true);
-    try { await action(); onSuccess?.(); loadData(); } finally { setActionLoading(false); }
+    setActionError('');
+    try {
+      await action();
+      onSuccess?.();
+      await loadData();
+    } catch (err: any) {
+      console.error('İşlem sırasında hata:', err);
+      const msg = err?.response?.data?.message;
+      setActionError(typeof msg === 'string' ? msg : 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+      setTimeout(() => setActionError(''), 5000);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Kategorize et (only employee's tasks)
@@ -164,6 +181,17 @@ export function EmployeeDashboard() {
             {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
+
+        {actionError && (
+          <div style={{
+            width: '100%', padding: '0.5rem 0.75rem',
+            background: 'rgba(239,68,68,0.1)', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            fontSize: '0.82rem', color: '#ef4444',
+          }}>
+            <AlertCircle size={14} /> {actionError}
+          </div>
+        )}
 
         {/* Canlı sayaç */}
         <div style={{

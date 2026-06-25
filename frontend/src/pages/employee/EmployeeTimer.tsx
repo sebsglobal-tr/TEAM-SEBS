@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Square, Coffee, RotateCcw, CheckCircle, Pause, PlayIcon } from 'lucide-react';
+import { Play, Square, Coffee, RotateCcw, CheckCircle, Pause, PlayIcon, AlertCircle } from 'lucide-react';
 import { workSessionsService } from '../../services/work-sessions.service';
 import { useWorkSessionHeartbeat } from '../../hooks/useWorkSessionHeartbeat';
 import { formatDuration } from '../../utils/format';
@@ -22,6 +22,7 @@ export function EmployeeTimer() {
   const [session, setSession] = useState<WorkSessionToday | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [displaySeconds, setDisplaySeconds] = useState(0);
 
   // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
@@ -98,12 +99,16 @@ export function EmployeeTimer() {
 
   const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
     setActionLoading(true);
+    setActionError('');
     try {
       await action();
       onSuccess?.();
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('İşlem sırasında hata:', err);
+      const msg = err?.response?.data?.message;
+      setActionError(typeof msg === 'string' ? msg : 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.');
+      setTimeout(() => setActionError(''), 5000);
     } finally {
       setActionLoading(false);
     }
@@ -160,6 +165,18 @@ export function EmployeeTimer() {
         <h1 className="page-title">Çalışma Sayacı</h1>
         <p className="page-subtitle">Çalışma sürenizi gerçek zamanlı takip edin</p>
       </div>
+
+      {actionError && (
+        <div style={{
+          maxWidth: 500, margin: '0 auto 1rem', padding: '0.65rem 1rem',
+          background: 'rgba(239,68,68,0.1)', borderRadius: 8,
+          border: '1px solid rgba(239,68,68,0.2)',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          fontSize: '0.85rem', color: '#ef4444',
+        }}>
+          <AlertCircle size={16} /> {actionError}
+        </div>
+      )}
 
       <div className="timer-container">
         <div className="timer-status">
