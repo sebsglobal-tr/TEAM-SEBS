@@ -60,12 +60,24 @@ export class ReportsService {
     status?: ReportStatus;
     reportType?: string;
     search?: string;
+    startDate?: Date;
+    endDate?: Date;
     page?: number;
     limit?: number;
   }) {
     const where = await this.buildAccessFilter(actor);
     if (filters?.status) where.status = filters.status;
     if (filters?.reportType) where.reportType = filters.reportType as ReportType;
+
+    if (filters?.startDate || filters?.endDate) {
+      (where as any).createdAt = {};
+      if (filters?.startDate) (where as any).createdAt.gte = filters.startDate;
+      if (filters?.endDate) {
+        const endOfDay = new Date(filters.endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        (where as any).createdAt.lte = endOfDay;
+      }
+    }
 
     if (filters?.search) {
       where.OR = [

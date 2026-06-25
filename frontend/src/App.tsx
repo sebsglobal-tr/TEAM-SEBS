@@ -100,6 +100,7 @@ function AppRoutes() {
         <Route path="tasks/bulk-create" element={<AdminBulkCreate />} />
         <Route path="tasks/:id" element={<AdminTaskDetail />} />
         <Route path="reports" element={<AdminReports />} />
+        <Route path="reports/calendar" element={<AdminReportsCalendar />} />
         <Route path="files" element={<AdminFiles />} />
         <Route path="work-sessions" element={<AdminWorkSessions />} />
         <Route path="departments" element={<AdminDepartments />} />
@@ -180,6 +181,7 @@ import { AdminTasks } from './pages/admin/AdminTasks';
 import { AdminBulkCreate } from './pages/admin/AdminBulkCreate';
 import { AdminTaskDetail } from './pages/admin/AdminTaskDetail';
 import { AdminReports } from './pages/admin/AdminReports';
+import { AdminReportsCalendar } from './pages/admin/AdminReportsCalendar';
 import { AdminFiles } from './pages/admin/AdminFiles';
 import { AdminWorkSessions } from './pages/admin/AdminWorkSessions';
 import { AdminSettings } from './pages/admin/AdminSettings';

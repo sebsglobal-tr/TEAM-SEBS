@@ -44,6 +44,8 @@ export class ReportsController {
     @Query('status') status?: ReportStatus,
     @Query('reportType') reportType?: string,
     @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -51,6 +53,8 @@ export class ReportsController {
       status,
       reportType,
       search,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

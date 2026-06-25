@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download, ListTodo, RefreshCw } from 'lucide-react';
+import { Users, UserCheck, Coffee, Clock, BarChart3, Activity, FileText, Download, ListTodo, RefreshCw, Play, Square, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { workSessionsService, type DashboardWorkStats } from '../../services/work-sessions.service';
 import { filesService, type FileRecord } from '../../services/files.service';
 import { tasksService } from '../../services/tasks.service';
 import { DailyTaskView } from '../../components/DailyTaskView';
+import { useWorkSession } from '../../hooks/useWorkSession';
 import { formatDuration, formatDateTime } from '../../utils/format';
 import type { Task } from '../../types';
 
@@ -31,6 +32,7 @@ export function AdminDashboard() {
   const [recentFiles, setRecentFiles] = useState<FileRecord[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const ws = useWorkSession();
 
   // İlk yükleme: tüm veriler
   const load = useCallback(async () => {
@@ -93,6 +95,57 @@ export function AdminDashboard() {
           <RefreshCw size={14} /> Yenile
         </button>
       </div>
+
+      {/* ⏱ Admin Çalışma Sayacı */}
+      <div className="card" style={{ marginBottom: '1rem', borderLeft: `4px solid ${ws.activeSession ? '#7c3aed' : '#64748b'}` }}>
+        <div className="card-body" style={{ padding: '0.75rem 1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'monospace', letterSpacing: 2, color: ws.activeSession ? '#7c3aed' : 'var(--text-secondary)' }}>
+                  {ws.formatHHMMSS(ws.displaySeconds)}
+                </div>
+                <div style={{ fontSize: '0.6rem', color: 'var(--text-secondary)' }}>
+                  {ws.activeSession ? (ws.isOnBreak ? '☕ Molada' : '🟢 Çalışıyor') : '⏹️ Başlatılmadı'}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              {ws.activeSession ? (
+                <>
+                  {!ws.isOnBreak ? (
+                    <button className="btn btn-secondary btn-sm" onClick={ws.startBreak} disabled={ws.actionLoading}>
+                      <Coffee size={14} /> Mola
+                    </button>
+                  ) : (
+                    <button className="btn btn-primary btn-sm" onClick={ws.endBreak} disabled={ws.actionLoading}>
+                      Moladan Dön
+                    </button>
+                  )}
+                  <button className="btn btn-danger btn-sm" onClick={ws.stop} disabled={ws.stopLoading}>
+                    <Square size={14} /> Bitir
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn-primary btn-sm" onClick={ws.start} disabled={ws.actionLoading}>
+                  <Play size={14} /> {ws.actionLoading ? 'Başlatılıyor...' : 'Çalışmayı Başlat'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {ws.error && (
+        <div style={{
+          padding: '0.5rem 0.75rem', marginBottom: '0.75rem',
+          background: 'rgba(239,68,68,0.1)', borderRadius: 8,
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          fontSize: '0.82rem', color: '#ef4444',
+        }}>
+          <Activity size={14} /> {ws.error}
+        </div>
+      )}
 
       {/* Canlı Durum Özet Kartları */}
       <div className="stats-grid" style={{ marginBottom: '1rem' }}>
