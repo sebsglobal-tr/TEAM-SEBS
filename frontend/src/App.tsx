@@ -107,6 +107,7 @@ function AppRoutes() {
         <Route path="departments" element={<AdminDepartments />} />
         <Route path="leaves" element={<LeaveRequestsPage />} />
         <Route path="performance" element={<AdminPerformance />} />
+        <Route path="org-chart" element={<AdminOrgChart />} />
         <Route path="audit-log" element={<AdminAuditLog />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
@@ -197,6 +198,7 @@ import { DepartmentsPage as AdminDepartments } from './pages/DepartmentsPage';
 import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';
 import { LeaveRequestsPage } from './pages/LeaveRequestsPage';
 import { AdminPerformance } from './pages/admin/AdminPerformance';
+import { AdminOrgChart } from './pages/admin/AdminOrgChart';
 
 // Manager Pages
 import { ManagerDashboard as ManagerDashboardPage } from './pages/manager/ManagerDashboard';

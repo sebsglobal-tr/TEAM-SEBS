@@ -20,9 +20,12 @@ import {
   Megaphone,
   Calendar,
   TrendingUp,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { notificationsService } from '../services/notifications.service';
 import { GlobalSearch } from '../components/GlobalSearch';
 import './layout.css';
@@ -67,6 +70,7 @@ const adminNav = [
     section: 'Sistem',
     items: [
       { to: '/admin/departments', icon: Users, label: 'Departmanlar' },
+      { to: '/admin/org-chart', icon: Users, label: 'Organizasyon Şeması' },
       { to: '/admin/audit-log', icon: Shield, label: 'Denetim Kaydı' },
       { to: '/admin/settings', icon: Settings, label: 'Ayarlar' },
     ],
@@ -75,6 +79,7 @@ const adminNav = [
 
 export function AdminLayout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -178,6 +183,9 @@ export function AdminLayout() {
             <GlobalSearch />
           </div>
           <div className="topbar-actions">
+            <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Aydınlık tema' : 'Karanlık tema'}>
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <button className="icon-btn notification-btn" onClick={() => navigate('/notifications')} title="Bildirimler">
               <Bell size={18} />
               {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}

@@ -17,9 +17,12 @@ import {
   MessageCircle,
   Megaphone,
   Calendar,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { notificationsService } from '../services/notifications.service';
 import { GlobalSearch } from '../components/GlobalSearch';
 import './layout.css';
@@ -60,6 +63,7 @@ const employeeNav = [
 
 export function EmployeeLayout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -157,6 +161,9 @@ export function EmployeeLayout() {
             <GlobalSearch />
           </div>
           <div className="topbar-actions">
+            <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Aydınlık tema' : 'Karanlık tema'}>
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
             <button className="icon-btn notification-btn" onClick={() => navigate('/notifications')} title="Bildirimler">
               <Bell size={18} />
               {unreadCount > 0 && <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
