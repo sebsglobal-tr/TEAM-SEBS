@@ -53,6 +53,19 @@ export class UsersService {
     return safeUser;
   }
 
+  async createBulk(dtos: CreateUserDto[], actor: JwtPayload) {
+    const results = { created: 0, errors: [] as string[] };
+    for (const dto of dtos) {
+      try {
+        await this.create(dto, actor);
+        results.created++;
+      } catch (err: any) {
+        results.errors.push(`${dto.email}: ${err.message}`);
+      }
+    }
+    return results;
+  }
+
   async findAll(actor: JwtPayload, filters?: {
     departmentId?: string;
     status?: UserStatus;

@@ -30,6 +30,12 @@ export class UsersController {
     return this.usersService.create(dto, user);
   }
 
+  @Post('bulk')
+  @Roles(UserRole.SUPER_ADMIN)
+  createBulk(@Body() dtos: CreateUserDto[], @CurrentUser() user: JwtPayload) {
+    return this.usersService.createBulk(dtos, user);
+  }
+
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.EMPLOYEE)
   findAll(

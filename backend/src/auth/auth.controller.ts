@@ -2,8 +2,10 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Req,
+  Param,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -49,6 +51,24 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, ActiveUserGuard)
   getMe(@CurrentUser() user: JwtPayload) {
     return this.authService.getMe(user.sub);
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard, ActiveUserGuard)
+  getSessions(@CurrentUser() user: JwtPayload) {
+    return this.authService.getSessions(user.sub);
+  }
+
+  @Delete('sessions/:id')
+  @UseGuards(JwtAuthGuard, ActiveUserGuard)
+  revokeSession(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.authService.revokeSession(user.sub, id);
+  }
+
+  @Delete('sessions')
+  @UseGuards(JwtAuthGuard, ActiveUserGuard)
+  revokeAllSessions(@CurrentUser() user: JwtPayload, @Body('currentToken') currentToken?: string) {
+    return this.authService.revokeAllSessions(user.sub, currentToken);
   }
 
   @Post('change-password')

@@ -17,6 +17,7 @@ import { SettingsModule } from './settings/settings.module';
 import { MessagesModule } from './messages/messages.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { LeavesModule } from './leaves/leaves.module';
+import { GroupsModule } from './groups/groups.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { LeavesModule } from './leaves/leaves.module';
     MessagesModule,
     AnnouncementsModule,
     LeavesModule,
+    GroupsModule,
   ],
   providers: [
     {

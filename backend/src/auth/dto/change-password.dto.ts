@@ -1,10 +1,11 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsString } from 'class-validator';
+import { StrongPassword } from '../../common/validators/strong-password.validator';
 
 export class ChangePasswordDto {
   @IsString()
   currentPassword!: string;
 
   @IsString()
-  @MinLength(6, { message: 'Şifre en az 6 karakter olmalıdır' })
+  @StrongPassword()
   newPassword!: string;
 }

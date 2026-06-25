@@ -57,4 +57,7 @@ export const messagesService = {
 
   markAllAsRead: (userId: string) =>
     api.patch(`/messages/read-all/${userId}`).then((r) => r.data),
+
+  search: (query: string) =>
+    api.get<Message[]>('/messages/search', { params: { q: query } }).then((r) => r.data),
 };

@@ -33,6 +33,21 @@ export class MessagesService {
     return msg;
   }
 
+  async searchMessages(userId: string, query: string) {
+    return this.prisma.message.findMany({
+      where: {
+        OR: [{ senderId: userId }, { receiverId: userId }],
+        message: { contains: query, mode: 'insensitive' },
+      },
+      include: {
+        sender: { select: { id: true, firstName: true, lastName: true, role: true } },
+        receiver: { select: { id: true, firstName: true, lastName: true, role: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
   async getConversations(userId: string) {
     const messages = await this.prisma.message.findMany({
       where: {

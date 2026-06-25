@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
+  NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -120,6 +121,36 @@ export class AuthService {
 
     const { passwordHash: _, ...safeUser } = user;
     return safeUser;
+  }
+
+  async getSessions(userId: string) {
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return tokens.map(t => ({
+      id: t.id,
+      createdAt: t.createdAt,
+      expiresAt: t.expiresAt,
+      isExpired: t.expiresAt < new Date(),
+    }));
+  }
+
+  async revokeSession(userId: string, tokenId: string) {
+    const token = await this.prisma.refreshToken.findUnique({ where: { id: tokenId } });
+    if (!token || token.userId !== userId) {
+      throw new NotFoundException('Oturum bulunamadı');
+    }
+    await this.prisma.refreshToken.delete({ where: { id: tokenId } });
+    return { message: 'Oturum sonlandırıldı' };
+  }
+
+  async revokeAllSessions(userId: string, exceptToken?: string) {
+    const where: any = { userId };
+    if (exceptToken) where.token = { not: exceptToken };
+    await this.prisma.refreshToken.deleteMany({ where });
+    return { message: 'Diğer tüm oturumlar sonlandırıldı' };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

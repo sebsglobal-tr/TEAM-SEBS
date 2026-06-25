@@ -27,6 +27,11 @@ export class MessagesController {
     return this.messagesService.send(dto.receiverId, dto.message, user.sub, dto.replyToId);
   }
 
+  @Get('search')
+  searchMessages(@Query('q') query: string, @CurrentUser() user: JwtPayload) {
+    return this.messagesService.searchMessages(user.sub, query);
+  }
+
   @Get('conversations')
   getConversations(@CurrentUser() user: JwtPayload) {
     return this.messagesService.getConversations(user.sub);
