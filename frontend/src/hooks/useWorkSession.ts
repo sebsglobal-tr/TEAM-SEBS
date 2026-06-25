@@ -133,12 +133,28 @@ export function useWorkSession() {
 
   const start = useCallback(() => {
     console.log('[WORK_TIMER] Start button CLICKED', {
-      page: typeof window !== 'undefined' ? window.location.pathname : 'ssr',
+      page: window.location.pathname,
       timestamp: new Date().toISOString(),
       hasActiveSession: !!activeSession,
+      handleActionType: typeof handleAction,
+      apiType: typeof workSessionsService.start,
     });
-    handleAction(() => workSessionsService.start());
-  }, [handleAction, activeSession]);
+
+    // handleAction undefined kontrolü
+    if (typeof handleAction !== 'function') {
+      console.error('[WORK_TIMER] CRITICAL: handleAction is NOT a function!');
+      setError('Sistem hatası: handleAction tanımlı değil. Sayfayı yenileyin.');
+      return;
+    }
+
+    try {
+      const promise = handleAction(() => workSessionsService.start());
+      console.log('[WORK_TIMER] handleAction returned:', promise ? 'Promise' : 'undefined', 'type:', typeof promise);
+    } catch (err) {
+      console.error('[WORK_TIMER] CRITICAL: handleAction threw synchronously:', err);
+      setError('Sistem hatası: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }, [handleAction, activeSession, setError]);
 
   const stop = useCallback(async () => {
     setStopLoading(true);
