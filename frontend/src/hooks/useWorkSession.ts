@@ -131,9 +131,14 @@ export function useWorkSession() {
     }
   }, [loadSession, showError, extractError]);
 
-  const start = useCallback(() =>
-    handleAction(() => workSessionsService.start()),
-  [handleAction]);
+  const start = useCallback(() => {
+    console.log('[WORK_TIMER] Start button CLICKED', {
+      page: typeof window !== 'undefined' ? window.location.pathname : 'ssr',
+      timestamp: new Date().toISOString(),
+      hasActiveSession: !!activeSession,
+    });
+    handleAction(() => workSessionsService.start());
+  }, [handleAction, activeSession]);
 
   const stop = useCallback(async () => {
     setStopLoading(true);
