@@ -589,6 +589,69 @@ export class WorkSessionsService {
     });
   }
 
+  async getDailyBreakdown(filters: {
+    startDate: Date;
+    endDate: Date;
+    userId?: string;
+  }) {
+    const where: Record<string, unknown> = {
+      startedAt: { gte: filters.startDate, lte: filters.endDate },
+    };
+    if (filters.userId) where.userId = filters.userId;
+
+    const sessions = await this.prisma.workSession.findMany({
+      where,
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, department: { select: { name: true } } },
+        },
+      },
+      orderBy: { startedAt: 'asc' },
+    });
+
+    // Group by user + date
+    const dailyMap = new Map<string, {
+      userId: string;
+      employeeName: string;
+      department?: string;
+      date: string;
+      totalActiveSeconds: number;
+      totalBreakSeconds: number;
+      totalIdleSeconds: number;
+      sessionCount: number;
+    }>();
+
+    for (const s of sessions) {
+      const dateKey = s.startedAt.toISOString().split('T')[0];
+      const mapKey = `${s.userId}_${dateKey}`;
+      const existing = dailyMap.get(mapKey) ?? {
+        userId: s.userId,
+        employeeName: `${s.user.firstName} ${s.user.lastName}`,
+        department: s.user.department?.name,
+        date: dateKey,
+        totalActiveSeconds: 0,
+        totalBreakSeconds: 0,
+        totalIdleSeconds: 0,
+        sessionCount: 0,
+      };
+
+      // Eğer oturum hala ACTIVE ise gerçek süreyi hesapla
+      let activeSecs = s.totalActiveSeconds;
+      if (s.status === 'ACTIVE') {
+        const baseTime = (s.lastResumedAt ?? s.startedAt).getTime();
+        activeSecs += Math.max(0, Math.floor((Date.now() - baseTime) / 1000));
+      }
+
+      existing.totalActiveSeconds += activeSecs;
+      existing.totalBreakSeconds += s.totalBreakSeconds;
+      existing.totalIdleSeconds += s.totalIdleSeconds;
+      existing.sessionCount += 1;
+      dailyMap.set(mapKey, existing);
+    }
+
+    return Array.from(dailyMap.values());
+  }
+
   async getReports(filters: {
     userId?: string;
     departmentId?: string;

@@ -55,6 +55,7 @@ const adminNav = [
       { to: '/admin/reports/calendar', icon: CalendarDays, label: 'Rapor Takvimi' },
       { to: '/admin/files', icon: FolderOpen, label: 'Dosyalar' },
       { to: '/admin/work-sessions', icon: Clock, label: 'Çalışma Süreleri' },
+      { to: '/admin/work-calendar', icon: CalendarDays, label: 'Çalışma Takvimi' },
       { to: '/admin/leaves', icon: Calendar, label: 'İzin Talepleri' },
       { to: '/admin/performance', icon: BarChart3, label: 'Performans' },
     ],

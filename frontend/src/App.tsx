@@ -104,6 +104,7 @@ function AppRoutes() {
         <Route path="reports/calendar" element={<AdminReportsCalendar />} />
         <Route path="files" element={<AdminFiles />} />
         <Route path="work-sessions" element={<AdminWorkSessions />} />
+        <Route path="work-calendar" element={<AdminWorkCalendar />} />
         <Route path="departments" element={<AdminDepartments />} />
         <Route path="leaves" element={<LeaveRequestsPage />} />
         <Route path="performance" element={<AdminPerformance />} />
@@ -193,6 +194,7 @@ import { AdminReports } from './pages/admin/AdminReports';
 import { AdminReportsCalendar } from './pages/admin/AdminReportsCalendar';
 import { AdminFiles } from './pages/admin/AdminFiles';
 import { AdminWorkSessions } from './pages/admin/AdminWorkSessions';
+import { AdminWorkCalendar } from './pages/admin/AdminWorkCalendar';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { DepartmentsPage as AdminDepartments } from './pages/DepartmentsPage';
 import { AuditLogPage as AdminAuditLog } from './pages/AuditLogPage';

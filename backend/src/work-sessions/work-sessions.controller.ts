@@ -119,6 +119,24 @@ export class WorkSessionsController {
     );
   }
 
+  @Get('daily-breakdown')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
+  getDailyBreakdown(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('userId') userId?: string,
+  ) {
+    const now = new Date();
+    const parsedStart = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const parsedEnd = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return this.workSessionsService.getDailyBreakdown({
+      startDate: isNaN(parsedStart.getTime()) ? new Date(now.getFullYear(), now.getMonth(), 1) : parsedStart,
+      endDate: isNaN(parsedEnd.getTime()) ? new Date(now.getFullYear(), now.getMonth() + 1, 0) : parsedEnd,
+      userId,
+    });
+  }
+
   @Get('reports')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.MANAGER)
