@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Clock, Coffee, Play, Square, FileText, Upload,
@@ -8,10 +8,10 @@ import {
 import { workSessionsService } from '../../services/work-sessions.service';
 import { filesService, type FileRecord } from '../../services/files.service';
 import { tasksService } from '../../services/tasks.service';
-import { useWorkSessionHeartbeat } from '../../hooks/useWorkSessionHeartbeat';
+import { useWorkSession } from '../../hooks/useWorkSession';
 import { formatDuration, formatDate } from '../../utils/format';
 import { useAuth } from '../../hooks/useAuth';
-import type { WorkSessionToday, Task } from '../../types';
+import type { Task } from '../../types';
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -41,31 +41,20 @@ function isOverdue(task: Task): boolean {
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
-  const [showEndOfDay, setShowEndOfDay] = useState(false);
-  const [stopLoading, setStopLoading] = useState(false);
-
   const { user } = useAuth();
-  const [session, setSession] = useState<WorkSessionToday | null>(null);
+  const ws = useWorkSession();
+  const [showEndOfDay, setShowEndOfDay] = useState(false);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [recentFiles, setRecentFiles] = useState<FileRecord[]>([]);
-  const [feedbackCount, setFeedbackCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
-  const isOnBreak = session?.isOnBreak ?? false;
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [s, t, f] = await Promise.all([
-        workSessionsService.getToday(),
+      const [t, f] = await Promise.all([
         tasksService.getAll({ limit: '50' }),
         filesService.getAll({ limit: 5 }),
       ]);
-      setSession(s);
       setTasks(t);
       setRecentFiles(f);
     } catch (err) {
@@ -76,73 +65,6 @@ export function EmployeeDashboard() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const activeSession = session?.activeSession;
-
-  // Real-time counter — backend'in totalActiveSeconds değerini baz alır
-  useEffect(() => {
-    if (!activeSession) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setElapsedSeconds(0);
-      return;
-    }
-    // Backend'in doğru toplam aktif süresi (mola/idle hesaba katılmış)
-    const baseActiveSeconds = activeSession.totalActiveSeconds ?? 0;
-
-    const calcElapsed = () => {
-      if (isOnBreak) {
-        setElapsedSeconds(baseActiveSeconds);
-        return;
-      }
-      // lastResumedAt son sürdürme anı, yoksa startedAt
-      const refTime = activeSession.lastResumedAt
-        ? new Date(activeSession.lastResumedAt).getTime()
-        : new Date(activeSession.startedAt).getTime();
-      const elapsedSinceRef = Math.max(0, Math.floor((Date.now() - refTime) / 1000));
-      setElapsedSeconds(baseActiveSeconds + elapsedSinceRef);
-    };
-
-    calcElapsed();
-    intervalRef.current = setInterval(calcElapsed, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [activeSession, isOnBreak]);
-
-  useWorkSessionHeartbeat({
-    isSessionActive: !!activeSession,
-    onUpdate: loadData,
-  });
-
-  const handleStop = async () => {
-    setStopLoading(true);
-    try {
-      await workSessionsService.stop();
-      setElapsedSeconds(0);
-      setShowEndOfDay(true);
-    } catch (err: any) {
-      const msg = err?.response?.data?.message;
-      setActionError(typeof msg === 'string' ? msg : 'Oturum sonlandırılırken hata oluştu.');
-      setTimeout(() => setActionError(''), 5000);
-    } finally {
-      setStopLoading(false);
-    }
-  };
-
-  const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
-    setActionLoading(true);
-    setActionError('');
-    try {
-      await action();
-      onSuccess?.();
-      await loadData();
-    } catch (err: any) {
-      console.error('İşlem sırasında hata:', err);
-      const msg = err?.response?.data?.message;
-      setActionError(typeof msg === 'string' ? msg : 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.');
-      setTimeout(() => setActionError(''), 5000);
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // Kategorize et (only employee's tasks)
   const myTasks = tasks.filter(t => t.assignedToId === user?.id);
@@ -158,13 +80,6 @@ export function EmployeeDashboard() {
   const ongoingTasks = myTasks.filter(t =>
     ['IN_PROGRESS', 'ASSIGNED_TO_EMPLOYEE', 'PENDING', 'PARTIALLY_COMPLETED'].includes(t.status)
   );
-
-  const formatHHMMSS = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
 
   if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
@@ -182,51 +97,52 @@ export function EmployeeDashboard() {
           </p>
         </div>
 
-        {actionError && (
+        {ws.error && (
           <div style={{
-            width: '100%', padding: '0.5rem 0.75rem',
+            width: '100%', padding: '0.65rem 0.85rem',
             background: 'rgba(239,68,68,0.1)', borderRadius: 8,
+            border: '1px solid rgba(239,68,68,0.2)',
             display: 'flex', alignItems: 'center', gap: '0.5rem',
-            fontSize: '0.82rem', color: '#ef4444',
+            fontSize: '0.85rem', color: '#ef4444',
           }}>
-            <AlertCircle size={14} /> {actionError}
+            <AlertCircle size={16} /> {ws.error}
           </div>
         )}
 
         {/* Canlı sayaç */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '0.75rem',
-          padding: '0.5rem 1rem', background: activeSession ? 'rgba(16,185,129,0.1)' : 'var(--bg-primary)',
-          borderRadius: 12, border: `1px solid ${activeSession ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
+          padding: '0.5rem 1rem', background: ws.activeSession ? 'rgba(16,185,129,0.1)' : 'var(--bg-primary)',
+          borderRadius: 12, border: `1px solid ${ws.activeSession ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
         }}>
-          {activeSession ? (
+          {ws.activeSession ? (
             <>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'monospace', color: '#10b981', letterSpacing: 2 }}>
-                  {formatHHMMSS(elapsedSeconds)}
+                  {ws.formatHHMMSS(ws.displaySeconds)}
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                  {isOnBreak ? 'Molada' : 'Çalışıyor'}
+                  {ws.isOnBreak ? 'Molada' : 'Çalışıyor'}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.35rem', flexDirection: 'column' }}>
-                {!isOnBreak ? (
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleAction(() => workSessionsService.startBreak())} disabled={actionLoading}>
+                {!ws.isOnBreak ? (
+                  <button className="btn btn-secondary btn-sm" onClick={ws.startBreak} disabled={ws.actionLoading}>
                     <Coffee size={12} /> Mola
                   </button>
                 ) : (
-                  <button className="btn btn-primary btn-sm" onClick={() => handleAction(() => workSessionsService.endBreak())} disabled={actionLoading}>
+                  <button className="btn btn-primary btn-sm" onClick={ws.endBreak} disabled={ws.actionLoading}>
                     Moladan Dön
                   </button>
                 )}
-                <button className="btn btn-danger btn-sm" onClick={handleStop} disabled={stopLoading}>
+                <button className="btn btn-danger btn-sm" onClick={ws.stop} disabled={ws.stopLoading}>
                   <Square size={12} /> Bitir
                 </button>
               </div>
             </>
           ) : (
-            <button className="btn btn-primary" onClick={() => handleAction(() => workSessionsService.start())} disabled={actionLoading}>
-              <Play size={16} /> Çalışmayı Başlat
+            <button className="btn btn-primary" onClick={ws.start} disabled={ws.actionLoading}>
+              <Play size={16} /> {ws.actionLoading ? 'Başlatılıyor...' : 'Çalışmayı Başlat'}
             </button>
           )}
         </div>
@@ -260,7 +176,7 @@ export function EmployeeDashboard() {
           </div>
           <div>
             <div className="stat-card-label">Bugün Aktif</div>
-            <div className="stat-card-value">{formatDuration(session?.totals.active ?? 0)}</div>
+            <div className="stat-card-value">{formatDuration(ws.session?.totals.active ?? 0)}</div>
           </div>
         </div>
         <div className="stat-card">
@@ -269,7 +185,7 @@ export function EmployeeDashboard() {
           </div>
           <div>
             <div className="stat-card-label">Mola</div>
-            <div className="stat-card-value">{formatDuration(session?.totals.break ?? 0)}</div>
+            <div className="stat-card-value">{formatDuration(ws.session?.totals.break ?? 0)}</div>
           </div>
         </div>
       </div>
@@ -311,7 +227,6 @@ export function EmployeeDashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
         {/* Sol: Görevler */}
         <div>
-          {/* Bugünkü Görevler */}
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -347,7 +262,6 @@ export function EmployeeDashboard() {
             </div>
           </div>
 
-          {/* Devam Eden Görevler */}
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -383,7 +297,6 @@ export function EmployeeDashboard() {
             </div>
           </div>
 
-          {/* Teslim Tarihi Yaklaşanlar */}
           {dueSoonTasks.length > 0 && (
             <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #f59e0b' }}>
               <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/tasks')}>
@@ -412,7 +325,6 @@ export function EmployeeDashboard() {
 
         {/* Sağ: Süre + Dosyalar + Feedback */}
         <div>
-          {/* Bugünkü süre detayı */}
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/timer')}>
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -425,25 +337,25 @@ export function EmployeeDashboard() {
                 <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(16,185,129,0.08)', borderRadius: 8 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Aktif</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981' }}>
-                    {formatDuration(session?.totals.active ?? 0)}
+                    {formatDuration(ws.session?.totals.active ?? 0)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(245,158,11,0.08)', borderRadius: 8 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Mola</div>
                   <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b' }}>
-                    {formatDuration(session?.totals.break ?? 0)}
+                    {formatDuration(ws.session?.totals.break ?? 0)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(99,102,241,0.08)', borderRadius: 8 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Başlangıç</div>
                   <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                    {activeSession ? new Date(activeSession.startedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                    {ws.activeSession ? new Date(ws.activeSession.startedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '-'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', padding: '0.5rem', background: 'rgba(239,68,68,0.08)', borderRadius: 8 }}>
                   <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginBottom: '0.15rem' }}>Durum</div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: activeSession ? (isOnBreak ? '#f59e0b' : '#10b981') : '#6b7280' }}>
-                    {activeSession ? (isOnBreak ? 'Molada' : 'Çalışıyor') : 'Başlatılmadı'}
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: ws.activeSession ? (ws.isOnBreak ? '#f59e0b' : '#10b981') : '#6b7280' }}>
+                    {ws.activeSession ? (ws.isOnBreak ? 'Molada' : 'Çalışıyor') : 'Başlatılmadı'}
                   </div>
                 </div>
               </div>
@@ -457,14 +369,13 @@ export function EmployeeDashboard() {
               <div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Gün Sonu Raporu</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  {session?.activeSession ? 'Çalışmayı bitirmeden raporunuzu yükleyin' : 'Yeni rapor eklemek için tıklayın'}
+                  {ws.activeSession ? 'Çalışmayı bitirmeden raporunuzu yükleyin' : 'Yeni rapor eklemek için tıklayın'}
                 </div>
               </div>
               <ArrowRight size={14} style={{ marginLeft: 'auto', color: 'var(--text-secondary)' }} />
             </div>
           </div>
 
-          {/* Son Yüklenen Dosyalar */}
           {recentFiles.length > 0 && (
             <div className="card" style={{ marginBottom: '1rem' }}>
               <div className="card-header">
@@ -488,7 +399,6 @@ export function EmployeeDashboard() {
             </div>
           )}
 
-          {/* Geri Bildirimler */}
           <div className="card" style={{ cursor: 'pointer' }} onClick={() => navigate('/employee/feedbacks')}>
             <div className="card-header">
               <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

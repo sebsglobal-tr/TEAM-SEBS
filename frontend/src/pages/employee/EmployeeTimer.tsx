@@ -1,163 +1,34 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Square, Coffee, RotateCcw, CheckCircle, Pause, PlayIcon, AlertCircle } from 'lucide-react';
-import { workSessionsService } from '../../services/work-sessions.service';
-import { useWorkSessionHeartbeat } from '../../hooks/useWorkSessionHeartbeat';
+import { useWorkSession } from '../../hooks/useWorkSession';
 import { formatDuration } from '../../utils/format';
-import type { WorkSessionToday } from '../../types';
 
 /**
  * EmployeeTimer
  *
  * MİMARİ:
+ * - Tüm oturum mantığı useWorkSession hook'u tarafından yönetilir
  * - Sayaç backend'deki gerçek zaman damgalarına göre hesaplanır
  * - Formül: totalActiveSeconds + (Date.now() - lastResumedAt ?? startedAt) / 1000
  * - setInterval sadece ekranı günceller, süreyi HESAPLAMAZ
  * - Tüm duraklatma/bitirme işlemleri sadece manueldir
+ * - Ana sayfa ile aynı backend verisini kullanır, senkron çalışır
  */
 
 export function EmployeeTimer() {
   const navigate = useNavigate();
+  const ws = useWorkSession();
   const [showEndOfDay, setShowEndOfDay] = useState(false);
-  const [session, setSession] = useState<WorkSessionToday | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
-  const [displaySeconds, setDisplaySeconds] = useState(0);
 
-  // isOnBreak backend'den geliyor — sayfa yenilenince kaybolmaz
-  const isOnBreak = session?.isOnBreak ?? false;
-
-  const displayRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ─── SÜRE HESAPLAMA (Date.now() tabanlı) ───
-
-  const calculateActiveSeconds = useCallback((sessionData: WorkSessionToday): number => {
-    const active = sessionData.activeSession;
-    if (!active) return 0;
-
-    if (active.status === 'ACTIVE') {
-      const referenceTime = active.lastResumedAt
-        ? new Date(active.lastResumedAt).getTime()
-        : new Date(active.startedAt).getTime();
-      const elapsedSinceResume = Math.max(0, Math.floor((Date.now() - referenceTime) / 1000));
-      return active.totalActiveSeconds + elapsedSinceResume;
-    }
-
-    // PAUSED / ENDED — sadece kayıtlı süre
-    return active.totalActiveSeconds;
-  }, []);
-
-  const loadData = useCallback(async () => {
-    try {
-      const s = await workSessionsService.getToday();
-      setSession(s);
-      setDisplaySeconds(calculateActiveSeconds(s));
-    } catch (err) {
-      console.error('Session yüklenirken hata:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [calculateActiveSeconds]);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // ─── CANLI SAYAÇ (sadece görüntü — süre hesaplamaz) ───
-
-  useEffect(() => {
-    if (!session?.activeSession || session.activeSession.status !== 'ACTIVE') {
-      if (displayRef.current) { clearInterval(displayRef.current); displayRef.current = null; }
-      return;
-    }
-
-    displayRef.current = setInterval(() => {
-      if (session?.activeSession?.status === 'ACTIVE') {
-        const active = session.activeSession;
-        const referenceTime = active.lastResumedAt
-          ? new Date(active.lastResumedAt).getTime()
-          : new Date(active.startedAt).getTime();
-        const elapsedSinceResume = Math.max(0, Math.floor((Date.now() - referenceTime) / 1000));
-        setDisplaySeconds(active.totalActiveSeconds + elapsedSinceResume);
-      }
-    }, 1000);
-
-    return () => { if (displayRef.current) clearInterval(displayRef.current); };
-  }, [session?.activeSession]);
-
-  // ─── HEARTBEAT ───
-
-  const activeSession = session?.activeSession;
-  const isSessionActive = !!activeSession && activeSession.status === 'ACTIVE';
-  const isPaused = activeSession?.status === 'PAUSED';
-
-  useWorkSessionHeartbeat({
-    isSessionActive,
-    onUpdate: loadData,
-  });
-
-  // ─── AKSİYONLAR ───
-
-  const handleAction = async (action: () => Promise<unknown>, onSuccess?: () => void) => {
-    setActionLoading(true);
-    setActionError('');
-    try {
-      await action();
-      onSuccess?.();
-      await loadData();
-    } catch (err: any) {
-      console.error('İşlem sırasında hata:', err);
-      const msg = err?.response?.data?.message;
-      setActionError(typeof msg === 'string' ? msg : 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.');
-      setTimeout(() => setActionError(''), 5000);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleResume = async () => {
-    setActionLoading(true);
-    try {
-      await workSessionsService.resume();
-      await loadData();
-    } catch (err) {
-      console.error('Devam ettirme hatası:', err);
-      await loadData();
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handlePause = async () => {
-    setActionLoading(true);
-    try {
-      await workSessionsService.pause();
-      await loadData();
-    } catch (err) {
-      console.error('Duraklatma hatası:', err);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // ─── FORMAT ───
-
-  const formatHHMMSS = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const stateLabel = !activeSession ? 'Çalışma başlatılmadı'
-    : isPaused ? 'Duraklatıldı'
-    : isOnBreak ? 'Moladasınız'
+  const stateLabel = !ws.activeSession ? 'Çalışma başlatılmadı'
+    : ws.isPaused ? 'Duraklatıldı'
+    : ws.isOnBreak ? 'Moladasınız'
     : 'Çalışma devam ediyor';
 
-  const stateDot = !activeSession ? 'off' : isPaused ? 'paused' : isOnBreak ? 'paused' : 'active';
+  const stateDot = !ws.activeSession ? 'off' : ws.isPaused ? 'paused' : ws.isOnBreak ? 'paused' : 'active';
 
-  // ─── RENDER ───
-
-  if (loading) return <div className="loading-spinner">Yükleniyor...</div>;
+  if (ws.loading) return <div className="loading-spinner">Yükleniyor...</div>;
 
   return (
     <div>
@@ -166,7 +37,7 @@ export function EmployeeTimer() {
         <p className="page-subtitle">Çalışma sürenizi gerçek zamanlı takip edin</p>
       </div>
 
-      {actionError && (
+      {ws.error && (
         <div style={{
           maxWidth: 500, margin: '0 auto 1rem', padding: '0.65rem 1rem',
           background: 'rgba(239,68,68,0.1)', borderRadius: 8,
@@ -174,7 +45,7 @@ export function EmployeeTimer() {
           display: 'flex', alignItems: 'center', gap: '0.5rem',
           fontSize: '0.85rem', color: '#ef4444',
         }}>
-          <AlertCircle size={16} /> {actionError}
+          <AlertCircle size={16} /> {ws.error}
         </div>
       )}
 
@@ -185,45 +56,45 @@ export function EmployeeTimer() {
         </div>
 
         <div className="timer-display" style={{ color: 'var(--accent)' }}>
-          {formatHHMMSS(displaySeconds)}
+          {ws.formatHHMMSS(ws.displaySeconds)}
         </div>
 
         <div className="timer-controls">
-          {!activeSession ? (
+          {!ws.activeSession ? (
             <button
               className="btn btn-primary"
               style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}
-              onClick={() => handleAction(() => workSessionsService.start())}
-              disabled={actionLoading}
+              onClick={ws.start}
+              disabled={ws.actionLoading}
             >
-              <Play size={24} /> Çalışmayı Başlat
+              <Play size={24} /> {ws.actionLoading ? 'Başlatılıyor...' : 'Çalışmayı Başlat'}
             </button>
-          ) : isPaused ? (
+          ) : ws.isPaused ? (
             <button
               className="btn btn-primary"
               style={{ padding: '0.75rem 2rem', fontSize: '1.1rem' }}
-              onClick={handleResume}
-              disabled={actionLoading}
+              onClick={ws.resume}
+              disabled={ws.actionLoading}
             >
               <PlayIcon size={24} /> Çalışmaya Devam Et
             </button>
           ) : (
             <>
-              {!isOnBreak ? (
+              {!ws.isOnBreak ? (
                 <>
                   <button
                     className="btn btn-secondary"
                     style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                    onClick={() => handleAction(() => workSessionsService.startBreak())}
-                    disabled={actionLoading}
+                    onClick={ws.startBreak}
+                    disabled={ws.actionLoading}
                   >
                     <Coffee size={20} /> Mola Ver
                   </button>
                   <button
                     className="btn btn-secondary"
                     style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                    onClick={handlePause}
-                    disabled={actionLoading}
+                    onClick={ws.pause}
+                    disabled={ws.actionLoading}
                   >
                     <Pause size={20} /> Duraklat
                   </button>
@@ -232,8 +103,8 @@ export function EmployeeTimer() {
                 <button
                   className="btn btn-primary"
                   style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                  onClick={() => handleAction(() => workSessionsService.endBreak())}
-                  disabled={actionLoading}
+                  onClick={ws.endBreak}
+                  disabled={ws.actionLoading}
                 >
                   <RotateCcw size={20} /> Moladan Dön
                 </button>
@@ -241,11 +112,11 @@ export function EmployeeTimer() {
               <button
                 className="btn btn-danger"
                 style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-                onClick={() => handleAction(() => workSessionsService.stop(), () => {
-                  setDisplaySeconds(0);
-                  setShowEndOfDay(true);
-                })}
-                disabled={actionLoading}
+                onClick={async () => {
+                  await ws.stop();
+                  if (!ws.error) setShowEndOfDay(true);
+                }}
+                disabled={ws.stopLoading}
               >
                 <Square size={20} /> Bitir
               </button>
@@ -254,23 +125,23 @@ export function EmployeeTimer() {
         </div>
 
         {/* İstatistikler */}
-        {session && (
+        {ws.session && (
           <div className="timer-stats">
             <div className="timer-stat">
               <div className="timer-stat-value" style={{ color: '#10b981' }}>
-                {formatDuration(session.totals.active)}
+                {formatDuration(ws.session.totals.active)}
               </div>
               <div className="timer-stat-label">Bugün Toplam</div>
             </div>
             <div className="timer-stat">
               <div className="timer-stat-value" style={{ color: '#f59e0b' }}>
-                {formatDuration(session.totals.break)}
+                {formatDuration(ws.session.totals.break)}
               </div>
               <div className="timer-stat-label">Mola</div>
             </div>
             <div className="timer-stat">
               <div className="timer-stat-value" style={{ color: '#8b5cf6' }}>
-                {formatDuration(session.totals.idle)}
+                {formatDuration(ws.session.totals.idle)}
               </div>
               <div className="timer-stat-label">Boşta</div>
             </div>
