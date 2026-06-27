@@ -1,53 +1,49 @@
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Injectable } from '@nestjs/common';
+import { Response } from 'express';
 
-@WebSocketGateway({
-  cors: { origin: '*', credentials: true },
-  namespace: '/ws',
-})
-export class AppGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  @WebSocketServer()
-  server!: Server;
+/**
+ * Simple SSE (Server-Sent Events) notification broadcaster.
+ * No WebSocket dependencies needed - works with plain HTTP.
+ *
+ * Usage:
+ *   this.appGateway.broadcast('notification', { userId, title, message });
+ *   this.appGateway.sendToUser(userId, 'notification', { title, message });
+ */
 
-  // userId -> socketId mapping
-  private userSockets = new Map<string, Set<string>>();
+@Injectable()
+export class AppGateway {
+  // userId -> Set of Response objects
+  private connections = new Map<string, Set<Response>>();
 
-  handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
-    if (userId) {
-      if (!this.userSockets.has(userId)) {
-        this.userSockets.set(userId, new Set());
-      }
-      this.userSockets.get(userId)!.add(client.id);
-      client.data.userId = userId;
+  addConnection(userId: string, res: Response) {
+    if (!this.connections.has(userId)) {
+      this.connections.set(userId, new Set());
     }
-  }
+    this.connections.get(userId)!.add(res);
 
-  handleDisconnect(client: Socket) {
-    const userId = client.data.userId;
-    if (userId && this.userSockets.has(userId)) {
-      this.userSockets.get(userId)!.delete(client.id);
-      if (this.userSockets.get(userId)!.size === 0) {
-        this.userSockets.delete(userId);
+    res.on('close', () => {
+      this.connections.get(userId)?.delete(res);
+      if (this.connections.get(userId)?.size === 0) {
+        this.connections.delete(userId);
       }
-    }
+    });
   }
 
   sendToUser(userId: string, event: string, data: any) {
-    const sockets = this.userSockets.get(userId);
-    if (sockets) {
-      for (const socketId of sockets) {
-        this.server.to(socketId).emit(event, data);
-      }
+    const sockets = this.connections.get(userId);
+    if (!sockets) return;
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sockets) {
+      try { res.write(payload); } catch { /* connection lost */ }
     }
   }
 
   sendToAll(event: string, data: any) {
-    this.server.emit(event, data);
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const [_, sockets] of this.connections) {
+      for (const res of sockets) {
+        try { res.write(payload); } catch { /* connection lost */ }
+      }
+    }
   }
 }
