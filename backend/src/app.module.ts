@@ -22,6 +22,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { ShiftsModule } from './shifts/shifts.module';
 import { ProjectsModule } from './projects/projects.module';
 import { HolidaysModule } from './holidays/holidays.module';
+import { HealthModule } from './health/health.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -51,6 +52,7 @@ import { HolidaysModule } from './holidays/holidays.module';
     ShiftsModule,
     ProjectsModule,
     HolidaysModule,
+    HealthModule,
   ],
   providers: [
     {

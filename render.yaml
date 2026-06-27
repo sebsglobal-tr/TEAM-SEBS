@@ -1,0 +1,43 @@
+# ─── WorkTrack Render Yapılandırması ─────────────────────────────────────────
+# Bu dosya, Render platformunda otomatik deploy için kullanılır.
+# Daha fazla bilgi: https://render.com/docs/yaml-spec
+
+services:
+  # ─── Backend API ────────────────────────────────────────────────────────
+  - type: web
+    name: team-sebs
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npx prisma db push --accept-data-loss && node dist/src/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: CORS_ORIGIN
+        value: "https://team-sebs.onrender.com"
+      - key: STORAGE_TYPE
+        value: local
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+    # ─── ⚠️ RENDER FREE TIER UYARI ──────────────────────────────────────
+    # Render'ın ücretsiz (free) planındaki web servisleri,
+    # 15 dakika işlem gelmezse otomatik olarak UYKUYA DALAR (spin down).
+    # Uyanma (cold start) 30-60 saniye sürer.
+    #
+    # ÇÖZÜM:
+    # 1. ÜCRETSİZ: https://cron-job.org adresine kaydolun
+    #    → Her 5 dakikada bir şu adrese GET isteği gönderecek bir cron job oluşturun:
+    #      https://team-sebs.onrender.com/api/health
+    #    → Bu, servisin uykuya dalmasını engeller.
+    #
+    # 2. ÜCRETLİ: Render'da "Starter" plana yükseltin (aylık ~$7)
+    #    → Servis hiç uykuya dalmaz, sürekli ayakta kalır.
+    #
+    # 3. MEVCUT: https://uptimerobot.com (ücretsiz, 5 dakikada bir kontrol)
+    #    → "HTTP Monitor" oluşturun, URL: https://team-sebs.onrender.com/api/health
