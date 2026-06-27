@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './hooks/useTheme';
+import { useKeepAlive } from './hooks/useKeepAlive';
 import { AdminLayout } from './layouts/AdminLayout';
 import { ManagerLayout } from './layouts/ManagerLayout';
 import { EmployeeLayout } from './layouts/EmployeeLayout';
@@ -73,6 +74,7 @@ export default function App() {
 }
 
 function AppRoutes() {
+  useKeepAlive();
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

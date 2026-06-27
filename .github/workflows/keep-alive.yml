@@ -1,0 +1,23 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    # Her 10 dakikada bir Render'a ping at → uykuya dalmayı engeller
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Manuel de çalıştırılabilir
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Ping Render API
+        run: |
+          echo "Pinging Render to prevent sleep..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://team-sebs.onrender.com/api/health")
+          echo "Response status: $STATUS"
+
+          if [ "$STATUS" = "200" ] || [ "$STATUS" = "000" ]; then
+            echo "✅ Render is awake!"
+          else
+            echo "⚠️ Expected 200 or 000, got $STATUS"
+          fi
